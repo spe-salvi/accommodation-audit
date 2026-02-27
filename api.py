@@ -1,4 +1,5 @@
 import logging, config
+from models import Term, Course, Quiz, User, Enrollment, Submission, Item
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -54,112 +55,109 @@ class CanvasClient:
 Builders
 '''
 
-def build_term():
-    return
+# def build_term(data: dict, *, course_id: int, **_):
+#     return Term.from_api(data)
 
-def build_courses_list():
-    return
+# def build_courses_list(data: dict, *, course_id: int, **_):
+#     return Course.from_list_api(data)
 
-def build_course():
-    return
+# def build_course(data: dict, *, course_id: int, **_):
+#     return Course.from_api(data)
 
-def build_new_quiz():
-    return
+# def build_new_quiz(data: dict, *, course_id: int, **_):
+#     return Quiz.from_new_api(course_id, data)
 
-def build_classic_quiz():
-    return
+# def build_classic_quiz(data: dict, *, course_id: int, **_):
+#     return Quiz.from_classic_api(course_id, data)
 
-def build_new_quizzes_list():
-    return
+# def build_new_quizzes_list(data: dict, *, course_id: int, **_):
+#     return Quiz.from_new_list_api(course_id, data)
 
-def build_classic_quizzes_list():
-    return
+# def build_classic_quizzes_list(data: dict, *, course_id: int, **_):
+#     return Quiz.from_classic_list_api(course_id, data)
 
-def build_users_list():
-    return
+# def build_users_list(data: dict, *, course_id: int, **_):
+#     return User.from_list_api(data)
 
-def build_user():
-    return
+# def build_user(data: dict, *, course_id: int, **_):
+#     return User.from_api(data)
 
-def build_enrollments_list():
-    return
+# def build_enrollments_list(data: dict, *, course_id: int, **_):
+#     return Enrollment.from_api(data)
 
-def build_classic_submissions_list():
-    return
+def build_submissions_list(data: dict, *, course_id: int, quiz_id: int, **_):
+    return Submission.from_api(course_id, quiz_id, data)
 
-def build_new_submissions_list():
-    return
-
-def build_items_list():
-    return
+def build_items_list(data: dict, *, course_id: int, quiz_id: int, **_):
+    return Item.from_api(course_id, quiz_id, data)
 
 
 ENDPOINTS = {
-    'term' : {
-        "method": "GET",
-        "path": f"{config.API_URL}/v1{config.FUS_ACCOUNT}/terms/{term_id}",
-        "params": {},
-        "builder": build_term,
-    },
-    'courses' : {
-        "method": "GET",
-        "path": f"{config.API_URL}/v1{config.FUS_ACCOUNT}/courses",
-        "params": {"search_term": search_param, "enrollment_term_id": term_id} if term_id else {"search_term": search_param} if search_param else {},
-        "builder": build_courses_list,
-    },
-    'course' : {
-        "method": "GET",
-        "path": f"{config.API_URL}/v1/courses/{course_id}",
-        "params": {},
-        "builder": build_course,
-    },
-    'course_users' : {
-        "method": "GET",
-        "path": f"{config.API_URL}/v1/courses/{course_id}/users",
-        "params": {},
-        "builder": build_users_list,
-    },
-    'users' : {
-        "method": "GET",
-        "path": f"{config.API_URL}/v1{config.FUS_ACCOUNT}/users",
-        "params": {"search_term": search_param} if search_param else {},
-        "builder": build_users_list,
-    },
-    'c_quizzes' : {
-        "method": "GET",
-        "path": f"{config.API_URL}/v1/courses/{course_id}/quizzes",
-        "params": {"search_term": search_param} if search_param else {},
-        "builder": build_classic_quizzes_list,
-    },
-    'c_quiz' : {
-        "method": "GET",
-        "path": f"{config.API_URL}/v1/courses/{course_id}/quizzes/{quiz_id}",
-        "params": {},
-        "builder": build_classic_quiz,
-    },
+    # 'term' : {
+    #     "method": "GET",
+    #     "path": f"{config.API_URL}/v1{config.FUS_ACCOUNT}/terms/{term_id}",
+    #     "params": {},
+    #     "builder": build_term,
+    # },
+    # 'courses' : {
+    #     "method": "GET",
+    #     "path": f"{config.API_URL}/v1{config.FUS_ACCOUNT}/courses",
+    #     "params": {"search_term": search_param, "enrollment_term_id": term_id} if term_id else {"search_term": search_param} if search_param else {},
+    #     "builder": build_courses_list,
+    # },
+    # 'course' : {
+    #     "method": "GET",
+    #     "path": f"{config.API_URL}/v1/courses/{course_id}",
+    #     "params": {},
+    #     "builder": build_course,
+    # },
+    # 'course_users' : {
+    #     "method": "GET",
+    #     "path": f"{config.API_URL}/v1/courses/{course_id}/users",
+    #     "params": {},
+    #     "builder": build_users_list,
+    # },
+    # 'users' : {
+    #     "method": "GET",
+    #     "path": f"{config.API_URL}/v1{config.FUS_ACCOUNT}/users",
+    #     "params": {"search_term": search_param} if search_param else {},
+    #     "builder": build_users_list,
+    # },
+    # 'c_quizzes' : {
+    #     "method": "GET",
+    #     "path": f"{config.API_URL}/v1/courses/{course_id}/quizzes",
+    #     "params": {"search_term": search_param} if search_param else {},
+    #     "builder": build_classic_quizzes_list,
+    # },
+    # 'c_quiz' : {
+    #     "method": "GET",
+    #     "path": f"{config.API_URL}/v1/courses/{course_id}/quizzes/{quiz_id}",
+    #     "params": {},
+    #     "builder": build_classic_quiz,
+    # },
     'c_quiz_submissions': {
         "method": "GET",
         "path": f"{config.API_URL}/v1/courses/{course_id}/quizzes/{quiz_id}/submissions",
         "params": {},
-        "builder": build_classic_submissions_list,
+        "builder": build_submissions_list,
     },
-    'n_quizzes' : {
-        "method": "GET",
-        "path": f"{config.API_URL}/quiz/v1/courses/{course_id}/quizzes",
-        "params": {"search_term": search_param} if search_param else {},
-        "builder": build_new_quizzes_list,
-    },
-    'n_quiz' : {
-        "method": "GET",
-        "path": f"{config.API_URL}/quiz/v1/courses/{course_id}/quizzes/{quiz_id}",
-        "params": {},
-        "builder": build_new_quiz,
-    },
+    # 'n_quizzes' : {
+    #     "method": "GET",
+    #     "path": f"{config.API_URL}/quiz/v1/courses/{course_id}/quizzes",
+    #     "params": {"search_term": search_param} if search_param else {},
+    #     "builder": build_new_quizzes_list,
+    # },
+    # 'n_quiz' : {
+    #     "method": "GET",
+    #     "path": f"{config.API_URL}/quiz/v1/courses/{course_id}/quizzes/{quiz_id}",
+    #     "params": {},
+    #     "builder": build_new_quiz,
+    # },
     'n_quiz_submissions': {
         "method": "GET",
         "path": f"{config.API_URL}/v1/courses/{course_id}/assignments/{quiz_id}/submissions",
         "params": {},
-        "builder": build_new_submissions_list,
+        "builder": build_submissions_list,
     },
     'n_quiz_items': {
         "method": "GET",
@@ -167,10 +165,10 @@ ENDPOINTS = {
         "params": {},
         "builder": build_items_list,
     },
-    'enrollments' : {
-        "method": "GET",
-        "path": f"{config.API_URL}/v1/users/{user_id}/enrollments",
-        "params": {"enrollment_term_id": term_id} if term_id else {},
-        "builder": build_enrollments_list,
-    },
+    # 'enrollments' : {
+    #     "method": "GET",
+    #     "path": f"{config.API_URL}/v1/users/{user_id}/enrollments",
+    #     "params": {"enrollment_term_id": term_id} if term_id else {},
+    #     "builder": build_enrollments_list,
+    # },
 }
