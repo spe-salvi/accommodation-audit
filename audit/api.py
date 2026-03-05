@@ -1,5 +1,5 @@
 import logging, config
-from models import Term, Course, Quiz, User, Enrollment, Submission, Item
+from audit.models.canvas import Term, Course, Quiz, User, Enrollment, Submission, NewQuizItem
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -89,7 +89,7 @@ def build_submissions_list(data: dict, *, course_id: int, quiz_id: int, **_):
     return Submission.from_api(course_id, quiz_id, data)
 
 def build_items_list(data: dict, *, course_id: int, quiz_id: int, **_):
-    return Item.from_api(course_id, quiz_id, data)
+    return NewQuizItem.from_api(course_id, quiz_id, data)
 
 
 ENDPOINTS = {
@@ -135,12 +135,12 @@ ENDPOINTS = {
     #     "params": {},
     #     "builder": build_classic_quiz,
     # },
-    'c_quiz_submissions': {
-        "method": "GET",
-        "path": f"{config.API_URL}/v1/courses/{course_id}/quizzes/{quiz_id}/submissions",
-        "params": {},
-        "builder": build_submissions_list,
-    },
+    # 'c_quiz_submissions': {
+    #     "method": "GET",
+    #     "path": f"{config.API_URL}/v1/courses/{course_id}/quizzes/{quiz_id}/submissions",
+    #     "params": {},
+    #     "builder": build_submissions_list,
+    # },
     # 'n_quizzes' : {
     #     "method": "GET",
     #     "path": f"{config.API_URL}/quiz/v1/courses/{course_id}/quizzes",
@@ -153,18 +153,18 @@ ENDPOINTS = {
     #     "params": {},
     #     "builder": build_new_quiz,
     # },
-    'n_quiz_submissions': {
-        "method": "GET",
-        "path": f"{config.API_URL}/v1/courses/{course_id}/assignments/{quiz_id}/submissions",
-        "params": {},
-        "builder": build_submissions_list,
-    },
-    'n_quiz_items': {
-        "method": "GET",
-        "path": f"{config.API_URL}/quiz/v1/courses/{course_id}/quizzes/{quiz_id}/items",
-        "params": {},
-        "builder": build_items_list,
-    },
+    # 'n_quiz_submissions': {
+    #     "method": "GET",
+    #     "path": f"{config.API_URL}/v1/courses/{course_id}/assignments/{quiz_id}/submissions",
+    #     "params": {},
+    #     "builder": build_submissions_list,
+    # },
+    # 'n_quiz_items': {
+    #     "method": "GET",
+    #     "path": f"{config.API_URL}/quiz/v1/courses/{course_id}/quizzes/{quiz_id}/items",
+    #     "params": {},
+    #     "builder": build_items_list,
+    # },
     # 'enrollments' : {
     #     "method": "GET",
     #     "path": f"{config.API_URL}/v1/users/{user_id}/enrollments",

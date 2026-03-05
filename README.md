@@ -35,6 +35,7 @@ Phase 1 – Initial Script
 
 - Naive approach to API calls and input processing
 - No caching or asynchronous functions
+- One course, one user, one quiz with local json fetch implemented
 
 ## Tradeoffs & Design Decisions
 
