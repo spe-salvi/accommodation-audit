@@ -101,46 +101,61 @@ class User:
         return [cls.from_api(item) for item in payload]
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class Participant:
     course_id: int
     quiz_id: int
     user_id: int
 
+    participant_id: int
     extra_attempts: int
-
-    disable_timer: bool
-    extra_time_enabled: bool
-    extra_time_in_seconds: int
 
     timer_multiplier_enabled: bool
     timer_multiplier_value: float
 
-    reduce_choices_enabled: bool
+    extra_time_enabled: bool
+    extra_time_in_seconds: int
+
+    completed: bool
+
+    @property
+    def key(self) -> tuple[int, int, int]:
+        return (self.course_id, self.quiz_id, self.user_id)
 
     @classmethod
-    def from_api(cls, *, course_id: int, quiz_id: int, data: Dict[str, Any]) -> Optional["Participant"]:
-        uid = data.get("user_id")
-        if uid is None:
-            return None
+    def from_api(cls, course_id: int, quiz_id: int, data: Dict[str, Any]) -> "Participant":
+        enrollment = data.get("enrollment") or {}
+        sessions = data.get("participant_sessions") or []
 
-        enrollment = data.get("enrollment", {}) or {}
+        completed = any(
+            (s.get("status") in {"graded", "complete"}) or (s.get("submitted_at") is not None)
+            for s in sessions
+        )
+
         return cls(
             course_id=int(course_id),
             quiz_id=int(quiz_id),
-            user_id=int(uid),
-
+            user_id=int(data["user_id"]),
+            participant_id=int(data["id"]),
             extra_attempts=int(data.get("extra_attempts") or 0),
 
-            disable_timer=bool(enrollment.get("disable_timer") or False),
+            timer_multiplier_enabled=bool(enrollment.get("timer_multiplier_enabled") or False),
+            timer_multiplier_value=float(enrollment.get("timer_multiplier_value") or 0),
+
             extra_time_enabled=bool(enrollment.get("extra_time_enabled") or False),
             extra_time_in_seconds=int(enrollment.get("extra_time_in_seconds") or 0),
 
-            timer_multiplier_enabled=bool(enrollment.get("timer_multiplier_enabled") or False),
-            timer_multiplier_value=float(enrollment.get("timer_multiplier_value") or 1.0),
-
-            reduce_choices_enabled=bool(enrollment.get("reduce_choices_enabled") or False),
+            completed=completed,
         )
+
+    @classmethod
+    def list_from_api(
+        cls,
+        course_id: int,
+        quiz_id: int,
+        payload: Iterable[Dict[str, Any]],
+    ) -> List["Participant"]:
+        return [cls.from_api(course_id, quiz_id, item) for item in payload]
     
 @dataclass(slots=True)
 class Enrollment:

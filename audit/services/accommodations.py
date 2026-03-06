@@ -1,9 +1,7 @@
 from dataclasses import dataclass
-from enum import Enum
-from audit.repos.base import AccommodationRepo
+from audit.models.audit import AuditRow
+from audit.repos.base import AccommodationRepo, AccommodationType
 
-class AccommodationType(str, Enum):
-    EXTRA_TIME = "extra_time"
 
 @dataclass(frozen=True)
 class AccommodationResult:
@@ -41,3 +39,56 @@ class AccommodationService:
             )
 
         return AccommodationResult(False, "Unsupported accommodation type.", {})
+
+
+    async def audit_course_quiz(
+        self,
+        *,
+        course_id: int,
+        quiz_id: int,
+        accommodation_type: AccommodationType,
+    ) -> list[AuditRow]:
+
+        # enrollments = await self.repo.list_enrollments(course_id)
+        participants = await self.repo.list_participants(
+            course_id=course_id,
+            quiz_id=quiz_id,
+        )
+        # submissions = await self.repo.list_submissions(course_id, quiz_id)
+
+        participant_map = {p.user_id: p for p in participants}
+        # submission_map = {s.user_id: s for s in submissions}
+
+        rows: list[AuditRow] = []
+
+        # for enrollment in enrollments:
+        for user_id, participant in participant_map.items():
+            # user_id = enrollment.user_id
+
+            result = await self.evaluate(
+                course_id=course_id,
+                quiz_id=quiz_id,
+                user_id=user_id,
+                accommodation_type=accommodation_type,
+            )
+
+            # submission = submission_map.get(user_id)
+
+            completed = None
+            # if submission:
+            #     completed = submission.date == "past"
+
+            rows.append(
+                AuditRow(
+                    course_id=course_id,
+                    quiz_id=quiz_id,
+                    user_id=user_id,
+                    accommodation_type=accommodation_type,
+                    has_accommodation=result.has_accommodation,
+                    completed=completed,
+                    reason=result.reason,
+                    details=result.details,
+                )
+            )
+
+        return rows

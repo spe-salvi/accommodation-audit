@@ -1,0 +1,1388 @@
+[
+    {
+        "id": "167661",
+        "assignment_id": "10199",
+        "context_id": "5999",
+        "multiple_attempts": {
+            "score_to_keep": "highest",
+            "build_on_last_attempt": false
+        },
+        "user_id": "6419",
+        "user": {
+            "full_name": "Mianna O'Dwyer",
+            "avatar_image_url": "https://franciscan.instructure.com/images/thumbnails/1118185/wTDPgW8qiUXtxHf2Q9nx9iin9TlWq9b0JoZJoZT0",
+            "html_url": null
+        },
+        "enrollment": {
+            "disable_timer": null,
+            "extra_time_enabled": null,
+            "extra_time_in_seconds": null,
+            "increase_time_allowance": null,
+            "timer_multiplier_enabled": null,
+            "timer_multiplier_value": null,
+            "reduce_choices_enabled": null
+        },
+        "extra_attempts": 0,
+        "disable_timer": null,
+        "extra_time_enabled": null,
+        "extra_time_in_seconds": null,
+        "reduce_choices_enabled": null,
+        "participant_sessions": [
+            {
+                "anonymous_grading": false,
+                "can_see_results_page": true,
+                "can_see_results_items": true,
+                "created_at": "2026-01-27T15:17:54.302Z",
+                "id": "191100",
+                "lock_at": null,
+                "multiple_attempts": {
+                    "score_to_keep": "highest",
+                    "build_on_last_attempt": false
+                },
+                "participant_id": "167661",
+                "quiz_api_quiz_session_id": "192665",
+                "status": "graded",
+                "submitted_at": "2026-02-04T14:28:08.692Z",
+                "timezone": "America/Denver",
+                "unlock_at": null,
+                "updated_at": "2026-02-23T01:59:41.521Z",
+                "view_permissions": {
+                    "display_items": true,
+                    "display_item_feedback": true,
+                    "display_item_response": true,
+                    "display_points_awarded": true,
+                    "result_view_restricted": true,
+                    "display_points_possible": true,
+                    "display_item_correct_answer": true,
+                    "display_item_response_qualifier": "always",
+                    "display_item_response_correctness": true,
+                    "display_item_response_correctness_qualifier": "always",
+                    "attempts_remain": false
+                },
+                "max_attempts": 1,
+                "score_to_keep_wrt_multiple_attempts": "highest",
+                "user_id": "6419"
+            }
+        ]
+    },
+    {
+        "id": "169108",
+        "assignment_id": "10199",
+        "context_id": "5999",
+        "multiple_attempts": {
+            "score_to_keep": "highest",
+            "build_on_last_attempt": false
+        },
+        "user_id": "4897",
+        "user": {
+            "full_name": "Julia McManamon",
+            "avatar_image_url": "https://franciscan.instructure.com/images/thumbnails/1363403/PGIPRqwVOGWofM9BogNEj3Grju21CW73J1fROIP1",
+            "html_url": null
+        },
+        "enrollment": {
+            "disable_timer": false,
+            "extra_time_enabled": false,
+            "extra_time_in_seconds": 0,
+            "increase_time_allowance": true,
+            "timer_multiplier_enabled": true,
+            "timer_multiplier_value": 2.0,
+            "reduce_choices_enabled": false
+        },
+        "extra_attempts": 0,
+        "disable_timer": null,
+        "extra_time_enabled": null,
+        "extra_time_in_seconds": null,
+        "reduce_choices_enabled": null,
+        "participant_sessions": [
+            {
+                "anonymous_grading": false,
+                "can_see_results_page": true,
+                "can_see_results_items": true,
+                "created_at": "2026-01-29T15:52:11.319Z",
+                "id": "192051",
+                "lock_at": null,
+                "multiple_attempts": {
+                    "score_to_keep": "highest",
+                    "build_on_last_attempt": false
+                },
+                "participant_id": "169108",
+                "quiz_api_quiz_session_id": "193621",
+                "status": "pending",
+                "submitted_at": null,
+                "timezone": "America/New_York",
+                "unlock_at": null,
+                "updated_at": "2026-01-29T15:52:11.432Z",
+                "view_permissions": {
+                    "display_items": true,
+                    "display_item_feedback": true,
+                    "display_item_response": true,
+                    "display_points_awarded": true,
+                    "result_view_restricted": true,
+                    "display_points_possible": true,
+                    "display_item_correct_answer": true,
+                    "display_item_response_qualifier": "always",
+                    "display_item_response_correctness": true,
+                    "display_item_response_correctness_qualifier": "always",
+                    "attempts_remain": true
+                },
+                "max_attempts": 1,
+                "score_to_keep_wrt_multiple_attempts": "highest",
+                "user_id": "4897"
+            }
+        ]
+    },
+    {
+        "id": "169517",
+        "assignment_id": "10199",
+        "context_id": "5999",
+        "multiple_attempts": {
+            "score_to_keep": "highest",
+            "build_on_last_attempt": false
+        },
+        "user_id": "7539",
+        "user": {
+            "full_name": "David Sloniker",
+            "avatar_image_url": "https://franciscan.instructure.com/images/thumbnails/1369112/d5NyzICRFRYW2ieHfYsdX5IDwlhaEaZAUyf8unNx",
+            "html_url": null
+        },
+        "enrollment": {
+            "disable_timer": null,
+            "extra_time_enabled": null,
+            "extra_time_in_seconds": null,
+            "increase_time_allowance": null,
+            "timer_multiplier_enabled": null,
+            "timer_multiplier_value": null,
+            "reduce_choices_enabled": null
+        },
+        "extra_attempts": 0,
+        "disable_timer": null,
+        "extra_time_enabled": null,
+        "extra_time_in_seconds": null,
+        "reduce_choices_enabled": null,
+        "participant_sessions": [
+            {
+                "anonymous_grading": false,
+                "can_see_results_page": true,
+                "can_see_results_items": true,
+                "created_at": "2026-01-29T20:13:02.670Z",
+                "id": "192240",
+                "lock_at": null,
+                "multiple_attempts": {
+                    "score_to_keep": "highest",
+                    "build_on_last_attempt": false
+                },
+                "participant_id": "169517",
+                "quiz_api_quiz_session_id": "193810",
+                "status": "graded",
+                "submitted_at": "2026-02-09T21:40:50.129Z",
+                "timezone": "America/New_York",
+                "unlock_at": null,
+                "updated_at": "2026-02-23T02:10:36.228Z",
+                "view_permissions": {
+                    "display_items": true,
+                    "display_item_feedback": true,
+                    "display_item_response": true,
+                    "display_points_awarded": true,
+                    "result_view_restricted": true,
+                    "display_points_possible": true,
+                    "display_item_correct_answer": true,
+                    "display_item_response_qualifier": "always",
+                    "display_item_response_correctness": true,
+                    "display_item_response_correctness_qualifier": "always",
+                    "attempts_remain": false
+                },
+                "max_attempts": 1,
+                "score_to_keep_wrt_multiple_attempts": "highest",
+                "user_id": "7539"
+            }
+        ]
+    },
+    {
+        "id": "171221",
+        "assignment_id": "10199",
+        "context_id": "5999",
+        "multiple_attempts": {
+            "score_to_keep": "highest",
+            "build_on_last_attempt": false
+        },
+        "user_id": "5382",
+        "user": {
+            "full_name": "Eva Dexter",
+            "avatar_image_url": "https://franciscan.instructure.com/images/messages/avatar-50.png",
+            "html_url": null
+        },
+        "enrollment": {
+            "disable_timer": null,
+            "extra_time_enabled": null,
+            "extra_time_in_seconds": null,
+            "increase_time_allowance": null,
+            "timer_multiplier_enabled": null,
+            "timer_multiplier_value": null,
+            "reduce_choices_enabled": null
+        },
+        "extra_attempts": 0,
+        "disable_timer": null,
+        "extra_time_enabled": null,
+        "extra_time_in_seconds": null,
+        "reduce_choices_enabled": null,
+        "participant_sessions": [
+            {
+                "anonymous_grading": false,
+                "can_see_results_page": true,
+                "can_see_results_items": true,
+                "created_at": "2026-01-31T18:12:15.183Z",
+                "id": "193259",
+                "lock_at": null,
+                "multiple_attempts": {
+                    "score_to_keep": "highest",
+                    "build_on_last_attempt": false
+                },
+                "participant_id": "171221",
+                "quiz_api_quiz_session_id": "194831",
+                "status": "graded",
+                "submitted_at": "2026-02-02T20:37:18.392Z",
+                "timezone": "America/New_York",
+                "unlock_at": null,
+                "updated_at": "2026-02-19T01:01:25.863Z",
+                "view_permissions": {
+                    "display_items": true,
+                    "display_item_feedback": true,
+                    "display_item_response": true,
+                    "display_points_awarded": true,
+                    "result_view_restricted": true,
+                    "display_points_possible": true,
+                    "display_item_correct_answer": true,
+                    "display_item_response_qualifier": "always",
+                    "display_item_response_correctness": true,
+                    "display_item_response_correctness_qualifier": "always",
+                    "attempts_remain": false
+                },
+                "max_attempts": 1,
+                "score_to_keep_wrt_multiple_attempts": "highest",
+                "user_id": "5382"
+            }
+        ]
+    },
+    {
+        "id": "171681",
+        "assignment_id": "10199",
+        "context_id": "5999",
+        "multiple_attempts": {
+            "score_to_keep": "highest",
+            "build_on_last_attempt": false
+        },
+        "user_id": "3951",
+        "user": {
+            "full_name": "Antonio Lulla",
+            "avatar_image_url": "https://franciscan.instructure.com/images/messages/avatar-50.png",
+            "html_url": null
+        },
+        "enrollment": {
+            "disable_timer": null,
+            "extra_time_enabled": null,
+            "extra_time_in_seconds": null,
+            "increase_time_allowance": null,
+            "timer_multiplier_enabled": null,
+            "timer_multiplier_value": null,
+            "reduce_choices_enabled": null
+        },
+        "extra_attempts": 0,
+        "disable_timer": null,
+        "extra_time_enabled": null,
+        "extra_time_in_seconds": null,
+        "reduce_choices_enabled": null,
+        "participant_sessions": [
+            {
+                "anonymous_grading": false,
+                "can_see_results_page": true,
+                "can_see_results_items": true,
+                "created_at": "2026-02-02T15:04:53.436Z",
+                "id": "194173",
+                "lock_at": null,
+                "multiple_attempts": {
+                    "score_to_keep": "highest",
+                    "build_on_last_attempt": false
+                },
+                "participant_id": "171681",
+                "quiz_api_quiz_session_id": "195747",
+                "status": "graded",
+                "submitted_at": "2026-02-06T15:52:37.786Z",
+                "timezone": "America/New_York",
+                "unlock_at": null,
+                "updated_at": "2026-02-23T01:53:40.540Z",
+                "view_permissions": {
+                    "display_items": true,
+                    "display_item_feedback": true,
+                    "display_item_response": true,
+                    "display_points_awarded": true,
+                    "result_view_restricted": true,
+                    "display_points_possible": true,
+                    "display_item_correct_answer": true,
+                    "display_item_response_qualifier": "always",
+                    "display_item_response_correctness": true,
+                    "display_item_response_correctness_qualifier": "always",
+                    "attempts_remain": false
+                },
+                "max_attempts": 1,
+                "score_to_keep_wrt_multiple_attempts": "highest",
+                "user_id": "3951"
+            }
+        ]
+    },
+    {
+        "id": "172045",
+        "assignment_id": "10199",
+        "context_id": "5999",
+        "multiple_attempts": {
+            "score_to_keep": "highest",
+            "build_on_last_attempt": false
+        },
+        "user_id": "5154",
+        "user": {
+            "full_name": "Lizzy Fields",
+            "avatar_image_url": "https://franciscan.instructure.com/images/messages/avatar-50.png",
+            "html_url": null
+        },
+        "enrollment": {
+            "disable_timer": null,
+            "extra_time_enabled": null,
+            "extra_time_in_seconds": null,
+            "increase_time_allowance": null,
+            "timer_multiplier_enabled": null,
+            "timer_multiplier_value": null,
+            "reduce_choices_enabled": null
+        },
+        "extra_attempts": 0,
+        "disable_timer": null,
+        "extra_time_enabled": null,
+        "extra_time_in_seconds": null,
+        "reduce_choices_enabled": null,
+        "participant_sessions": [
+            {
+                "anonymous_grading": false,
+                "can_see_results_page": true,
+                "can_see_results_items": true,
+                "created_at": "2026-02-03T02:49:10.141Z",
+                "id": "194515",
+                "lock_at": null,
+                "multiple_attempts": {
+                    "score_to_keep": "highest",
+                    "build_on_last_attempt": false
+                },
+                "participant_id": "172045",
+                "quiz_api_quiz_session_id": "196089",
+                "status": "graded",
+                "submitted_at": "2026-02-10T04:13:11.105Z",
+                "timezone": "America/New_York",
+                "unlock_at": null,
+                "updated_at": "2026-02-19T01:04:13.586Z",
+                "view_permissions": {
+                    "display_items": true,
+                    "display_item_feedback": true,
+                    "display_item_response": true,
+                    "display_points_awarded": true,
+                    "result_view_restricted": true,
+                    "display_points_possible": true,
+                    "display_item_correct_answer": true,
+                    "display_item_response_qualifier": "always",
+                    "display_item_response_correctness": true,
+                    "display_item_response_correctness_qualifier": "always",
+                    "attempts_remain": false
+                },
+                "max_attempts": 1,
+                "score_to_keep_wrt_multiple_attempts": "highest",
+                "user_id": "5154"
+            }
+        ]
+    },
+    {
+        "id": "172876",
+        "assignment_id": "10199",
+        "context_id": "5999",
+        "multiple_attempts": {
+            "score_to_keep": "highest",
+            "build_on_last_attempt": false
+        },
+        "user_id": "7832",
+        "user": {
+            "full_name": "Dominic Alteri",
+            "avatar_image_url": "https://franciscan.instructure.com/images/thumbnails/1582770/ajZBf35pWZcnOjbt0o3nfD8Mo9GNRjeQgWfkaFAp",
+            "html_url": null
+        },
+        "enrollment": {
+            "disable_timer": null,
+            "extra_time_enabled": null,
+            "extra_time_in_seconds": null,
+            "increase_time_allowance": null,
+            "timer_multiplier_enabled": null,
+            "timer_multiplier_value": null,
+            "reduce_choices_enabled": null
+        },
+        "extra_attempts": 0,
+        "disable_timer": null,
+        "extra_time_enabled": null,
+        "extra_time_in_seconds": null,
+        "reduce_choices_enabled": null,
+        "participant_sessions": [
+            {
+                "anonymous_grading": false,
+                "can_see_results_page": true,
+                "can_see_results_items": true,
+                "created_at": "2026-02-03T20:31:15.424Z",
+                "id": "195080",
+                "lock_at": null,
+                "multiple_attempts": {
+                    "score_to_keep": "highest",
+                    "build_on_last_attempt": false
+                },
+                "participant_id": "172876",
+                "quiz_api_quiz_session_id": "196654",
+                "status": "graded",
+                "submitted_at": "2026-02-03T21:38:26.740Z",
+                "timezone": "America/New_York",
+                "unlock_at": null,
+                "updated_at": "2026-02-22T23:50:56.234Z",
+                "view_permissions": {
+                    "display_items": true,
+                    "display_item_feedback": true,
+                    "display_item_response": true,
+                    "display_points_awarded": true,
+                    "result_view_restricted": true,
+                    "display_points_possible": true,
+                    "display_item_correct_answer": true,
+                    "display_item_response_qualifier": "always",
+                    "display_item_response_correctness": true,
+                    "display_item_response_correctness_qualifier": "always",
+                    "attempts_remain": false
+                },
+                "max_attempts": 1,
+                "score_to_keep_wrt_multiple_attempts": "highest",
+                "user_id": "7832"
+            }
+        ]
+    },
+    {
+        "id": "173210",
+        "assignment_id": "10199",
+        "context_id": "5999",
+        "multiple_attempts": {
+            "score_to_keep": "highest",
+            "build_on_last_attempt": false
+        },
+        "user_id": "8335",
+        "user": {
+            "full_name": "Anthony Perez",
+            "avatar_image_url": "https://franciscan.instructure.com/images/thumbnails/1584113/p5kpwD69R3OObKtyqUsNVZnSTiDEUIYVEyv6l7Tm",
+            "html_url": null
+        },
+        "enrollment": {
+            "disable_timer": null,
+            "extra_time_enabled": null,
+            "extra_time_in_seconds": null,
+            "increase_time_allowance": null,
+            "timer_multiplier_enabled": null,
+            "timer_multiplier_value": null,
+            "reduce_choices_enabled": null
+        },
+        "extra_attempts": 0,
+        "disable_timer": null,
+        "extra_time_enabled": null,
+        "extra_time_in_seconds": null,
+        "reduce_choices_enabled": null,
+        "participant_sessions": [
+            {
+                "anonymous_grading": false,
+                "can_see_results_page": true,
+                "can_see_results_items": true,
+                "created_at": "2026-02-05T14:35:44.169Z",
+                "id": "195837",
+                "lock_at": null,
+                "multiple_attempts": {
+                    "score_to_keep": "highest",
+                    "build_on_last_attempt": false
+                },
+                "participant_id": "173210",
+                "quiz_api_quiz_session_id": "197414",
+                "status": "graded",
+                "submitted_at": "2026-02-09T21:28:32.618Z",
+                "timezone": "America/New_York",
+                "unlock_at": null,
+                "updated_at": "2026-02-23T04:06:40.641Z",
+                "view_permissions": {
+                    "display_items": true,
+                    "display_item_feedback": true,
+                    "display_item_response": true,
+                    "display_points_awarded": true,
+                    "result_view_restricted": true,
+                    "display_points_possible": true,
+                    "display_item_correct_answer": true,
+                    "display_item_response_qualifier": "always",
+                    "display_item_response_correctness": true,
+                    "display_item_response_correctness_qualifier": "always",
+                    "attempts_remain": false
+                },
+                "max_attempts": 1,
+                "score_to_keep_wrt_multiple_attempts": "highest",
+                "user_id": "8335"
+            }
+        ]
+    },
+    {
+        "id": "173654",
+        "assignment_id": "10199",
+        "context_id": "5999",
+        "multiple_attempts": {
+            "score_to_keep": "highest",
+            "build_on_last_attempt": false
+        },
+        "user_id": "5654",
+        "user": {
+            "full_name": "Talia Marcino",
+            "avatar_image_url": "https://franciscan.instructure.com/images/messages/avatar-50.png",
+            "html_url": null
+        },
+        "enrollment": {
+            "disable_timer": null,
+            "extra_time_enabled": null,
+            "extra_time_in_seconds": null,
+            "increase_time_allowance": null,
+            "timer_multiplier_enabled": null,
+            "timer_multiplier_value": null,
+            "reduce_choices_enabled": null
+        },
+        "extra_attempts": 0,
+        "disable_timer": null,
+        "extra_time_enabled": null,
+        "extra_time_in_seconds": null,
+        "reduce_choices_enabled": null,
+        "participant_sessions": [
+            {
+                "anonymous_grading": false,
+                "can_see_results_page": true,
+                "can_see_results_items": true,
+                "created_at": "2026-02-05T22:49:44.942Z",
+                "id": "196162",
+                "lock_at": null,
+                "multiple_attempts": {
+                    "score_to_keep": "highest",
+                    "build_on_last_attempt": false
+                },
+                "participant_id": "173654",
+                "quiz_api_quiz_session_id": "197744",
+                "status": "graded",
+                "submitted_at": "2026-02-07T02:29:24.086Z",
+                "timezone": "America/New_York",
+                "unlock_at": null,
+                "updated_at": "2026-02-23T02:00:43.743Z",
+                "view_permissions": {
+                    "display_items": true,
+                    "display_item_feedback": true,
+                    "display_item_response": true,
+                    "display_points_awarded": true,
+                    "result_view_restricted": true,
+                    "display_points_possible": true,
+                    "display_item_correct_answer": true,
+                    "display_item_response_qualifier": "always",
+                    "display_item_response_correctness": true,
+                    "display_item_response_correctness_qualifier": "always",
+                    "attempts_remain": false
+                },
+                "max_attempts": 1,
+                "score_to_keep_wrt_multiple_attempts": "highest",
+                "user_id": "5654"
+            }
+        ]
+    },
+    {
+        "id": "173693",
+        "assignment_id": "10199",
+        "context_id": "5999",
+        "multiple_attempts": {
+            "score_to_keep": "highest",
+            "build_on_last_attempt": false
+        },
+        "user_id": "8540",
+        "user": {
+            "full_name": "Cole Pyle",
+            "avatar_image_url": "https://franciscan.instructure.com/images/thumbnails/1581998/cXudYuWSZODwkIQq4yK5PRuZTu25tXkUe34RtAFf",
+            "html_url": null
+        },
+        "enrollment": {
+            "disable_timer": null,
+            "extra_time_enabled": null,
+            "extra_time_in_seconds": null,
+            "increase_time_allowance": null,
+            "timer_multiplier_enabled": null,
+            "timer_multiplier_value": null,
+            "reduce_choices_enabled": null
+        },
+        "extra_attempts": 0,
+        "disable_timer": null,
+        "extra_time_enabled": null,
+        "extra_time_in_seconds": null,
+        "reduce_choices_enabled": null,
+        "participant_sessions": [
+            {
+                "anonymous_grading": false,
+                "can_see_results_page": true,
+                "can_see_results_items": true,
+                "created_at": "2026-02-06T02:15:51.921Z",
+                "id": "196284",
+                "lock_at": null,
+                "multiple_attempts": {
+                    "score_to_keep": "highest",
+                    "build_on_last_attempt": false
+                },
+                "participant_id": "173693",
+                "quiz_api_quiz_session_id": "197866",
+                "status": "graded",
+                "submitted_at": "2026-02-10T12:55:27.503Z",
+                "timezone": "America/Chicago",
+                "unlock_at": null,
+                "updated_at": "2026-02-23T02:03:45.910Z",
+                "view_permissions": {
+                    "display_items": true,
+                    "display_item_feedback": true,
+                    "display_item_response": true,
+                    "display_points_awarded": true,
+                    "result_view_restricted": true,
+                    "display_points_possible": true,
+                    "display_item_correct_answer": true,
+                    "display_item_response_qualifier": "always",
+                    "display_item_response_correctness": true,
+                    "display_item_response_correctness_qualifier": "always",
+                    "attempts_remain": false
+                },
+                "max_attempts": 1,
+                "score_to_keep_wrt_multiple_attempts": "highest",
+                "user_id": "8540"
+            }
+        ]
+    },
+    {
+        "id": "174146",
+        "assignment_id": "10199",
+        "context_id": "5999",
+        "multiple_attempts": {
+            "score_to_keep": "highest",
+            "build_on_last_attempt": false
+        },
+        "user_id": "4773",
+        "user": {
+            "full_name": "Samuel Chipps",
+            "avatar_image_url": "https://franciscan.instructure.com/images/messages/avatar-50.png",
+            "html_url": null
+        },
+        "enrollment": {
+            "disable_timer": null,
+            "extra_time_enabled": null,
+            "extra_time_in_seconds": null,
+            "increase_time_allowance": null,
+            "timer_multiplier_enabled": null,
+            "timer_multiplier_value": null,
+            "reduce_choices_enabled": null
+        },
+        "extra_attempts": 0,
+        "disable_timer": null,
+        "extra_time_enabled": null,
+        "extra_time_in_seconds": null,
+        "reduce_choices_enabled": null,
+        "participant_sessions": [
+            {
+                "anonymous_grading": false,
+                "can_see_results_page": true,
+                "can_see_results_items": true,
+                "created_at": "2026-02-09T23:05:23.270Z",
+                "id": "198012",
+                "lock_at": null,
+                "multiple_attempts": {
+                    "score_to_keep": "highest",
+                    "build_on_last_attempt": false
+                },
+                "participant_id": "174146",
+                "quiz_api_quiz_session_id": "199611",
+                "status": "graded",
+                "submitted_at": "2026-02-10T00:35:57.650Z",
+                "timezone": "America/New_York",
+                "unlock_at": null,
+                "updated_at": "2026-02-19T00:36:18.515Z",
+                "view_permissions": {
+                    "display_items": true,
+                    "display_item_feedback": true,
+                    "display_item_response": true,
+                    "display_points_awarded": true,
+                    "result_view_restricted": true,
+                    "display_points_possible": true,
+                    "display_item_correct_answer": true,
+                    "display_item_response_qualifier": "always",
+                    "display_item_response_correctness": true,
+                    "display_item_response_correctness_qualifier": "always",
+                    "attempts_remain": false
+                },
+                "max_attempts": 1,
+                "score_to_keep_wrt_multiple_attempts": "highest",
+                "user_id": "4773"
+            }
+        ]
+    },
+    {
+        "id": "174147",
+        "assignment_id": "10199",
+        "context_id": "5999",
+        "multiple_attempts": {
+            "score_to_keep": "highest",
+            "build_on_last_attempt": false
+        },
+        "user_id": "4405",
+        "user": {
+            "full_name": "Arianna Curran",
+            "avatar_image_url": "https://franciscan.instructure.com/images/messages/avatar-50.png",
+            "html_url": null
+        },
+        "enrollment": {
+            "disable_timer": null,
+            "extra_time_enabled": null,
+            "extra_time_in_seconds": null,
+            "increase_time_allowance": null,
+            "timer_multiplier_enabled": null,
+            "timer_multiplier_value": null,
+            "reduce_choices_enabled": null
+        },
+        "extra_attempts": 0,
+        "disable_timer": null,
+        "extra_time_enabled": null,
+        "extra_time_in_seconds": null,
+        "reduce_choices_enabled": null,
+        "participant_sessions": [
+            {
+                "anonymous_grading": false,
+                "can_see_results_page": true,
+                "can_see_results_items": true,
+                "created_at": "2026-02-08T20:21:09.453Z",
+                "id": "197459",
+                "lock_at": null,
+                "multiple_attempts": {
+                    "score_to_keep": "highest",
+                    "build_on_last_attempt": false
+                },
+                "participant_id": "174147",
+                "quiz_api_quiz_session_id": "199053",
+                "status": "graded",
+                "submitted_at": "2026-02-10T02:55:08.990Z",
+                "timezone": "America/New_York",
+                "unlock_at": null,
+                "updated_at": "2026-02-19T00:59:43.648Z",
+                "view_permissions": {
+                    "display_items": true,
+                    "display_item_feedback": true,
+                    "display_item_response": true,
+                    "display_points_awarded": true,
+                    "result_view_restricted": true,
+                    "display_points_possible": true,
+                    "display_item_correct_answer": true,
+                    "display_item_response_qualifier": "always",
+                    "display_item_response_correctness": true,
+                    "display_item_response_correctness_qualifier": "always",
+                    "attempts_remain": false
+                },
+                "max_attempts": 1,
+                "score_to_keep_wrt_multiple_attempts": "highest",
+                "user_id": "4405"
+            }
+        ]
+    },
+    {
+        "id": "174148",
+        "assignment_id": "10199",
+        "context_id": "5999",
+        "multiple_attempts": {
+            "score_to_keep": "highest",
+            "build_on_last_attempt": false
+        },
+        "user_id": "5468",
+        "user": {
+            "full_name": "Eli Everts",
+            "avatar_image_url": "https://franciscan.instructure.com/images/thumbnails/1390033/yak4dUKmzBQOHKUdvWuqXnmMyCFBZuFv3XEmzAM1",
+            "html_url": null
+        },
+        "enrollment": {
+            "disable_timer": false,
+            "extra_time_enabled": false,
+            "extra_time_in_seconds": 0,
+            "increase_time_allowance": true,
+            "timer_multiplier_enabled": true,
+            "timer_multiplier_value": 1.5,
+            "reduce_choices_enabled": false
+        },
+        "extra_attempts": 0,
+        "disable_timer": null,
+        "extra_time_enabled": null,
+        "extra_time_in_seconds": null,
+        "reduce_choices_enabled": null,
+        "participant_sessions": [
+            {
+                "anonymous_grading": false,
+                "can_see_results_page": true,
+                "can_see_results_items": true,
+                "created_at": "2026-02-11T13:59:26.377Z",
+                "id": "198922",
+                "lock_at": null,
+                "multiple_attempts": {
+                    "score_to_keep": "highest",
+                    "build_on_last_attempt": false
+                },
+                "participant_id": "174148",
+                "quiz_api_quiz_session_id": "200531",
+                "status": "graded",
+                "submitted_at": "2026-02-16T20:19:43.583Z",
+                "timezone": "America/New_York",
+                "unlock_at": null,
+                "updated_at": "2026-02-19T01:02:28.546Z",
+                "view_permissions": {
+                    "display_items": true,
+                    "display_item_feedback": true,
+                    "display_item_response": true,
+                    "display_points_awarded": true,
+                    "result_view_restricted": true,
+                    "display_points_possible": true,
+                    "display_item_correct_answer": true,
+                    "display_item_response_qualifier": "always",
+                    "display_item_response_correctness": true,
+                    "display_item_response_correctness_qualifier": "always",
+                    "attempts_remain": false
+                },
+                "max_attempts": 1,
+                "score_to_keep_wrt_multiple_attempts": "highest",
+                "user_id": "5468"
+            }
+        ]
+    },
+    {
+        "id": "174149",
+        "assignment_id": "10199",
+        "context_id": "5999",
+        "multiple_attempts": {
+            "score_to_keep": "highest",
+            "build_on_last_attempt": false
+        },
+        "user_id": "7464",
+        "user": {
+            "full_name": "Maria Gruber",
+            "avatar_image_url": "https://franciscan.instructure.com/images/thumbnails/1462519/WZoVS12wraeqTJjxzVsqj5Nch53I8olNTDJDzZA4",
+            "html_url": null
+        },
+        "enrollment": {
+            "disable_timer": null,
+            "extra_time_enabled": null,
+            "extra_time_in_seconds": null,
+            "increase_time_allowance": null,
+            "timer_multiplier_enabled": null,
+            "timer_multiplier_value": null,
+            "reduce_choices_enabled": null
+        },
+        "extra_attempts": 0,
+        "disable_timer": null,
+        "extra_time_enabled": null,
+        "extra_time_in_seconds": null,
+        "reduce_choices_enabled": null,
+        "participant_sessions": [
+            {
+                "anonymous_grading": false,
+                "can_see_results_page": true,
+                "can_see_results_items": true,
+                "created_at": "2026-02-10T14:07:54.031Z",
+                "id": "198243",
+                "lock_at": null,
+                "multiple_attempts": {
+                    "score_to_keep": "highest",
+                    "build_on_last_attempt": false
+                },
+                "participant_id": "174149",
+                "quiz_api_quiz_session_id": "199842",
+                "status": "graded",
+                "submitted_at": "2026-02-10T15:32:52.474Z",
+                "timezone": "America/New_York",
+                "unlock_at": null,
+                "updated_at": "2026-02-19T01:06:48.467Z",
+                "view_permissions": {
+                    "display_items": true,
+                    "display_item_feedback": true,
+                    "display_item_response": true,
+                    "display_points_awarded": true,
+                    "result_view_restricted": true,
+                    "display_points_possible": true,
+                    "display_item_correct_answer": true,
+                    "display_item_response_qualifier": "always",
+                    "display_item_response_correctness": true,
+                    "display_item_response_correctness_qualifier": "always",
+                    "attempts_remain": false
+                },
+                "max_attempts": 1,
+                "score_to_keep_wrt_multiple_attempts": "highest",
+                "user_id": "7464"
+            }
+        ]
+    },
+    {
+        "id": "174150",
+        "assignment_id": "10199",
+        "context_id": "5999",
+        "multiple_attempts": {
+            "score_to_keep": "highest",
+            "build_on_last_attempt": false
+        },
+        "user_id": "5229",
+        "user": {
+            "full_name": "Evangeline Khym",
+            "avatar_image_url": "https://franciscan.instructure.com/images/messages/avatar-50.png",
+            "html_url": null
+        },
+        "enrollment": {
+            "disable_timer": null,
+            "extra_time_enabled": null,
+            "extra_time_in_seconds": null,
+            "increase_time_allowance": null,
+            "timer_multiplier_enabled": null,
+            "timer_multiplier_value": null,
+            "reduce_choices_enabled": null
+        },
+        "extra_attempts": 0,
+        "disable_timer": null,
+        "extra_time_enabled": null,
+        "extra_time_in_seconds": null,
+        "reduce_choices_enabled": null,
+        "participant_sessions": [
+            {
+                "anonymous_grading": false,
+                "can_see_results_page": true,
+                "can_see_results_items": true,
+                "created_at": "2026-02-09T22:25:53.792Z",
+                "id": "197991",
+                "lock_at": null,
+                "multiple_attempts": {
+                    "score_to_keep": "highest",
+                    "build_on_last_attempt": false
+                },
+                "participant_id": "174150",
+                "quiz_api_quiz_session_id": "199590",
+                "status": "graded",
+                "submitted_at": "2026-02-09T23:25:35.112Z",
+                "timezone": "America/New_York",
+                "unlock_at": null,
+                "updated_at": "2026-02-22T23:55:03.668Z",
+                "view_permissions": {
+                    "display_items": true,
+                    "display_item_feedback": true,
+                    "display_item_response": true,
+                    "display_points_awarded": true,
+                    "result_view_restricted": true,
+                    "display_points_possible": true,
+                    "display_item_correct_answer": true,
+                    "display_item_response_qualifier": "always",
+                    "display_item_response_correctness": true,
+                    "display_item_response_correctness_qualifier": "always",
+                    "attempts_remain": false
+                },
+                "max_attempts": 1,
+                "score_to_keep_wrt_multiple_attempts": "highest",
+                "user_id": "5229"
+            }
+        ]
+    },
+    {
+        "id": "174151",
+        "assignment_id": "10199",
+        "context_id": "5999",
+        "multiple_attempts": {
+            "score_to_keep": "highest",
+            "build_on_last_attempt": false
+        },
+        "user_id": "7194",
+        "user": {
+            "full_name": "Zachary Oliver",
+            "avatar_image_url": "https://franciscan.instructure.com/images/messages/avatar-50.png",
+            "html_url": null
+        },
+        "enrollment": {
+            "disable_timer": null,
+            "extra_time_enabled": null,
+            "extra_time_in_seconds": null,
+            "increase_time_allowance": null,
+            "timer_multiplier_enabled": null,
+            "timer_multiplier_value": null,
+            "reduce_choices_enabled": null
+        },
+        "extra_attempts": 0,
+        "disable_timer": null,
+        "extra_time_enabled": null,
+        "extra_time_in_seconds": null,
+        "reduce_choices_enabled": null,
+        "participant_sessions": [
+            {
+                "anonymous_grading": false,
+                "can_see_results_page": true,
+                "can_see_results_items": true,
+                "created_at": "2026-02-10T06:03:44.734Z",
+                "id": "198194",
+                "lock_at": null,
+                "multiple_attempts": {
+                    "score_to_keep": "highest",
+                    "build_on_last_attempt": false
+                },
+                "participant_id": "174151",
+                "quiz_api_quiz_session_id": "199793",
+                "status": "graded",
+                "submitted_at": "2026-02-10T07:00:08.105Z",
+                "timezone": "America/New_York",
+                "unlock_at": null,
+                "updated_at": "2026-02-23T02:02:05.556Z",
+                "view_permissions": {
+                    "display_items": true,
+                    "display_item_feedback": true,
+                    "display_item_response": true,
+                    "display_points_awarded": true,
+                    "result_view_restricted": true,
+                    "display_points_possible": true,
+                    "display_item_correct_answer": true,
+                    "display_item_response_qualifier": "always",
+                    "display_item_response_correctness": true,
+                    "display_item_response_correctness_qualifier": "always",
+                    "attempts_remain": false
+                },
+                "max_attempts": 1,
+                "score_to_keep_wrt_multiple_attempts": "highest",
+                "user_id": "7194"
+            }
+        ]
+    },
+    {
+        "id": "174152",
+        "assignment_id": "10199",
+        "context_id": "5999",
+        "multiple_attempts": {
+            "score_to_keep": "highest",
+            "build_on_last_attempt": false
+        },
+        "user_id": "6930",
+        "user": {
+            "full_name": "Georgina Rivera",
+            "avatar_image_url": "https://franciscan.instructure.com/images/thumbnails/1370040/L19YHSAIt3OofH4p1BJ5HVyvExYQcs8odapWiVuZ",
+            "html_url": null
+        },
+        "enrollment": {
+            "disable_timer": null,
+            "extra_time_enabled": null,
+            "extra_time_in_seconds": null,
+            "increase_time_allowance": null,
+            "timer_multiplier_enabled": null,
+            "timer_multiplier_value": null,
+            "reduce_choices_enabled": null
+        },
+        "extra_attempts": 0,
+        "disable_timer": null,
+        "extra_time_enabled": null,
+        "extra_time_in_seconds": null,
+        "reduce_choices_enabled": null,
+        "participant_sessions": [
+            {
+                "anonymous_grading": false,
+                "can_see_results_page": true,
+                "can_see_results_items": true,
+                "created_at": "2026-02-10T00:14:46.067Z",
+                "id": "198054",
+                "lock_at": null,
+                "multiple_attempts": {
+                    "score_to_keep": "highest",
+                    "build_on_last_attempt": false
+                },
+                "participant_id": "174152",
+                "quiz_api_quiz_session_id": "199653",
+                "status": "graded",
+                "submitted_at": "2026-02-10T12:24:35.600Z",
+                "timezone": "America/New_York",
+                "unlock_at": null,
+                "updated_at": "2026-02-23T02:07:08.864Z",
+                "view_permissions": {
+                    "display_items": true,
+                    "display_item_feedback": true,
+                    "display_item_response": true,
+                    "display_points_awarded": true,
+                    "result_view_restricted": true,
+                    "display_points_possible": true,
+                    "display_item_correct_answer": true,
+                    "display_item_response_qualifier": "always",
+                    "display_item_response_correctness": true,
+                    "display_item_response_correctness_qualifier": "always",
+                    "attempts_remain": false
+                },
+                "max_attempts": 1,
+                "score_to_keep_wrt_multiple_attempts": "highest",
+                "user_id": "6930"
+            }
+        ]
+    },
+    {
+        "id": "174153",
+        "assignment_id": "10199",
+        "context_id": "5999",
+        "multiple_attempts": {
+            "score_to_keep": "highest",
+            "build_on_last_attempt": false
+        },
+        "user_id": "7176",
+        "user": {
+            "full_name": "Aiden Townsend",
+            "avatar_image_url": "https://franciscan.instructure.com/images/messages/avatar-50.png",
+            "html_url": null
+        },
+        "enrollment": {
+            "disable_timer": null,
+            "extra_time_enabled": null,
+            "extra_time_in_seconds": null,
+            "increase_time_allowance": null,
+            "timer_multiplier_enabled": null,
+            "timer_multiplier_value": null,
+            "reduce_choices_enabled": null
+        },
+        "extra_attempts": 0,
+        "disable_timer": null,
+        "extra_time_enabled": null,
+        "extra_time_in_seconds": null,
+        "reduce_choices_enabled": null,
+        "participant_sessions": [
+            {
+                "anonymous_grading": false,
+                "can_see_results_page": true,
+                "can_see_results_items": true,
+                "created_at": "2026-02-09T14:04:24.384Z",
+                "id": "197750",
+                "lock_at": null,
+                "multiple_attempts": {
+                    "score_to_keep": "highest",
+                    "build_on_last_attempt": false
+                },
+                "participant_id": "174153",
+                "quiz_api_quiz_session_id": "199344",
+                "status": "graded",
+                "submitted_at": "2026-02-10T05:15:26.968Z",
+                "timezone": "America/New_York",
+                "unlock_at": null,
+                "updated_at": "2026-02-23T02:11:44.523Z",
+                "view_permissions": {
+                    "display_items": true,
+                    "display_item_feedback": true,
+                    "display_item_response": true,
+                    "display_points_awarded": true,
+                    "result_view_restricted": true,
+                    "display_points_possible": true,
+                    "display_item_correct_answer": true,
+                    "display_item_response_qualifier": "always",
+                    "display_item_response_correctness": true,
+                    "display_item_response_correctness_qualifier": "always",
+                    "attempts_remain": false
+                },
+                "max_attempts": 1,
+                "score_to_keep_wrt_multiple_attempts": "highest",
+                "user_id": "7176"
+            }
+        ]
+    },
+    {
+        "id": "174154",
+        "assignment_id": "10199",
+        "context_id": "5999",
+        "multiple_attempts": {
+            "score_to_keep": "highest",
+            "build_on_last_attempt": false
+        },
+        "user_id": "6775",
+        "user": {
+            "full_name": "Evy Truman",
+            "avatar_image_url": "https://franciscan.instructure.com/images/messages/avatar-50.png",
+            "html_url": null
+        },
+        "enrollment": {
+            "disable_timer": null,
+            "extra_time_enabled": null,
+            "extra_time_in_seconds": null,
+            "increase_time_allowance": null,
+            "timer_multiplier_enabled": null,
+            "timer_multiplier_value": null,
+            "reduce_choices_enabled": null
+        },
+        "extra_attempts": 0,
+        "disable_timer": null,
+        "extra_time_enabled": null,
+        "extra_time_in_seconds": null,
+        "reduce_choices_enabled": null,
+        "participant_sessions": [
+            {
+                "anonymous_grading": false,
+                "can_see_results_page": true,
+                "can_see_results_items": true,
+                "created_at": "2026-02-09T05:52:25.751Z",
+                "id": "197721",
+                "lock_at": null,
+                "multiple_attempts": {
+                    "score_to_keep": "highest",
+                    "build_on_last_attempt": false
+                },
+                "participant_id": "174154",
+                "quiz_api_quiz_session_id": "199315",
+                "status": "graded",
+                "submitted_at": "2026-02-09T23:52:19.728Z",
+                "timezone": "America/New_York",
+                "unlock_at": null,
+                "updated_at": "2026-02-23T02:14:25.035Z",
+                "view_permissions": {
+                    "display_items": true,
+                    "display_item_feedback": true,
+                    "display_item_response": true,
+                    "display_points_awarded": true,
+                    "result_view_restricted": true,
+                    "display_points_possible": true,
+                    "display_item_correct_answer": true,
+                    "display_item_response_qualifier": "always",
+                    "display_item_response_correctness": true,
+                    "display_item_response_correctness_qualifier": "always",
+                    "attempts_remain": false
+                },
+                "max_attempts": 1,
+                "score_to_keep_wrt_multiple_attempts": "highest",
+                "user_id": "6775"
+            }
+        ]
+    },
+    {
+        "id": "174155",
+        "assignment_id": "10199",
+        "context_id": "5999",
+        "multiple_attempts": {
+            "score_to_keep": "highest",
+            "build_on_last_attempt": false
+        },
+        "user_id": "8337",
+        "user": {
+            "full_name": "Heidi Warner",
+            "avatar_image_url": "https://franciscan.instructure.com/images/thumbnails/1582683/fKftznKtBJFNnaCiOV7M1UURk1YV22RvDb38xmLB",
+            "html_url": null
+        },
+        "enrollment": {
+            "disable_timer": null,
+            "extra_time_enabled": null,
+            "extra_time_in_seconds": null,
+            "increase_time_allowance": null,
+            "timer_multiplier_enabled": null,
+            "timer_multiplier_value": null,
+            "reduce_choices_enabled": null
+        },
+        "extra_attempts": 0,
+        "disable_timer": null,
+        "extra_time_enabled": null,
+        "extra_time_in_seconds": null,
+        "reduce_choices_enabled": null,
+        "participant_sessions": [
+            {
+                "anonymous_grading": false,
+                "can_see_results_page": true,
+                "can_see_results_items": true,
+                "created_at": "2026-02-09T23:36:35.726Z",
+                "id": "198030",
+                "lock_at": null,
+                "multiple_attempts": {
+                    "score_to_keep": "highest",
+                    "build_on_last_attempt": false
+                },
+                "participant_id": "174155",
+                "quiz_api_quiz_session_id": "199629",
+                "status": "graded",
+                "submitted_at": "2026-02-10T02:52:22.298Z",
+                "timezone": "America/Chicago",
+                "unlock_at": null,
+                "updated_at": "2026-02-23T02:17:14.910Z",
+                "view_permissions": {
+                    "display_items": true,
+                    "display_item_feedback": true,
+                    "display_item_response": true,
+                    "display_points_awarded": true,
+                    "result_view_restricted": true,
+                    "display_points_possible": true,
+                    "display_item_correct_answer": true,
+                    "display_item_response_qualifier": "always",
+                    "display_item_response_correctness": true,
+                    "display_item_response_correctness_qualifier": "always",
+                    "attempts_remain": false
+                },
+                "max_attempts": 1,
+                "score_to_keep_wrt_multiple_attempts": "highest",
+                "user_id": "8337"
+            }
+        ]
+    },
+    {
+        "id": "174156",
+        "assignment_id": "10199",
+        "context_id": "5999",
+        "multiple_attempts": {
+            "score_to_keep": "highest",
+            "build_on_last_attempt": false
+        },
+        "user_id": "8344",
+        "user": {
+            "full_name": "Michael Wildroudt",
+            "avatar_image_url": "https://franciscan.instructure.com/images/messages/avatar-50.png",
+            "html_url": null
+        },
+        "enrollment": {
+            "disable_timer": null,
+            "extra_time_enabled": null,
+            "extra_time_in_seconds": null,
+            "increase_time_allowance": null,
+            "timer_multiplier_enabled": null,
+            "timer_multiplier_value": null,
+            "reduce_choices_enabled": null
+        },
+        "extra_attempts": 0,
+        "disable_timer": null,
+        "extra_time_enabled": null,
+        "extra_time_in_seconds": null,
+        "reduce_choices_enabled": null,
+        "participant_sessions": [
+            {
+                "anonymous_grading": false,
+                "can_see_results_page": true,
+                "can_see_results_items": true,
+                "created_at": "2026-02-10T02:34:01.553Z",
+                "id": "198150",
+                "lock_at": null,
+                "multiple_attempts": {
+                    "score_to_keep": "highest",
+                    "build_on_last_attempt": false
+                },
+                "participant_id": "174156",
+                "quiz_api_quiz_session_id": "199749",
+                "status": "graded",
+                "submitted_at": "2026-02-10T03:43:47.552Z",
+                "timezone": "America/New_York",
+                "unlock_at": null,
+                "updated_at": "2026-02-23T04:10:32.569Z",
+                "view_permissions": {
+                    "display_items": true,
+                    "display_item_feedback": true,
+                    "display_item_response": true,
+                    "display_points_awarded": true,
+                    "result_view_restricted": true,
+                    "display_points_possible": true,
+                    "display_item_correct_answer": true,
+                    "display_item_response_qualifier": "always",
+                    "display_item_response_correctness": true,
+                    "display_item_response_correctness_qualifier": "always",
+                    "attempts_remain": false
+                },
+                "max_attempts": 1,
+                "score_to_keep_wrt_multiple_attempts": "highest",
+                "user_id": "8344"
+            }
+        ]
+    }
+]
