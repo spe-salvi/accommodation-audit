@@ -8,7 +8,11 @@ BASE_DIR = Path(__file__).resolve().parent
 DUMPS_DIR = BASE_DIR / "dumps"
 
 async def demo():
-    repo = JsonRepo(participant_path=DUMPS_DIR / "participants.json")
+    repo = JsonRepo(
+        participant_path=DUMPS_DIR / "participants.json",
+        submission_path=DUMPS_DIR / "submissions.json",
+        )
+    
     svc = AccommodationService(repo)
 
     rows = await svc.audit_course_quiz(
@@ -17,8 +21,8 @@ async def demo():
         accommodation_type=AccommodationType.EXTRA_TIME,
     )
 
-    for r in rows:
-        print(r)
+    for row in rows:
+        print(row)
 
 if __name__ == "__main__":
     asyncio.run(demo())

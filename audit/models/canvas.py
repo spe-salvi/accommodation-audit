@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from typing import Any, Dict, Iterable, List, Optional
+from urllib.parse import urlparse, parse_qs
 
 @dataclass(slots=True)
 class Term:
@@ -116,21 +117,23 @@ class Participant:
     extra_time_enabled: bool
     extra_time_in_seconds: int
 
-    completed: bool
+    participant_session_id: Optional[str]
+    quiz_session_id: Optional[str]
 
     @property
     def key(self) -> tuple[int, int, int]:
         return (self.course_id, self.quiz_id, self.user_id)
 
+    @property
+    def session_key(self) -> tuple[Optional[str], Optional[str]]:
+        return (self.participant_session_id, self.quiz_session_id)
+    
     @classmethod
     def from_api(cls, course_id: int, quiz_id: int, data: Dict[str, Any]) -> "Participant":
         enrollment = data.get("enrollment") or {}
         sessions = data.get("participant_sessions") or []
 
-        completed = any(
-            (s.get("status") in {"graded", "complete"}) or (s.get("submitted_at") is not None)
-            for s in sessions
-        )
+        first_session = sessions[0] if sessions else {}
 
         return cls(
             course_id=int(course_id),
@@ -145,7 +148,8 @@ class Participant:
             extra_time_enabled=bool(enrollment.get("extra_time_enabled") or False),
             extra_time_in_seconds=int(enrollment.get("extra_time_in_seconds") or 0),
 
-            completed=completed,
+            participant_session_id=first_session.get("id"),
+            quiz_session_id=first_session.get("quiz_api_quiz_session_id"),
         )
 
     @classmethod
@@ -192,6 +196,8 @@ class Submission:
     # extra_time: int
     extra_attempts: int
     date: str
+    participant_session_id: str | None
+    quiz_session_id: str | None
 
     @staticmethod
     def _workflow_to_date(workflow: str) -> str:
@@ -200,6 +206,19 @@ class Submission:
         if workflow in ("settings_only", "unsubmitted"):
             return "future"
         return ""
+    
+    @staticmethod
+    def parse_new_quiz_session_ids(external_tool_url: str | None) -> tuple[str | None, str | None]:
+        if not external_tool_url:
+            return None, None
+
+        parsed = urlparse(external_tool_url)
+        query = parse_qs(parsed.query)
+
+        participant_session_id = query.get("participant_session_id", [None])[0]
+        quiz_session_id = query.get("quiz_session_id", [None])[0]
+
+        return participant_session_id, quiz_session_id
 
     @classmethod
     def from_api(
@@ -223,6 +242,10 @@ class Submission:
         # extra_time = int(data.get("extra_time") or 0)
         extra_attempts = int(data.get("extra_attempts") or 0)
 
+        participant_session_id, quiz_session_id_value = cls.parse_new_quiz_session_ids(
+            data.get("external_tool_url")
+        )
+
         return cls(
             user_id=uid,
             course_id=int(course_id),
@@ -230,8 +253,9 @@ class Submission:
             # extra_time=extra_time,
             extra_attempts=extra_attempts,
             date=cls._workflow_to_date(workflow),
+            participant_session_id=participant_session_id,
+            quiz_session_id=quiz_session_id_value,
         )
-
 
 @dataclass(slots=True)
 class NewQuizItem:

@@ -12,6 +12,3 @@ class AuditRow:
 
     has_accommodation: bool
     completed: Optional[bool]
-
-    reason: str
-    details: Dict

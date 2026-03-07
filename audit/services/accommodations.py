@@ -49,45 +49,52 @@ class AccommodationService:
         accommodation_type: AccommodationType,
     ) -> list[AuditRow]:
 
-        # enrollments = await self.repo.list_enrollments(course_id)
         participants = await self.repo.list_participants(
             course_id=course_id,
             quiz_id=quiz_id,
         )
-        # submissions = await self.repo.list_submissions(course_id, quiz_id)
+        submissions = await self.repo.list_submissions(
+            course_id=course_id,
+            quiz_id=quiz_id,
+        )
 
-        participant_map = {p.user_id: p for p in participants}
-        # submission_map = {s.user_id: s for s in submissions}
+        submission_by_session = {
+            (s.participant_session_id, s.quiz_session_id): s
+            for s in submissions
+        }
 
         rows: list[AuditRow] = []
 
-        # for enrollment in enrollments:
-        for user_id, participant in participant_map.items():
-            # user_id = enrollment.user_id
+        # print("participant keys:")
+        # for p in participants[:5]:
+        #     print((p.participant_session_id, p.quiz_session_id), p.user_id)
+
+        # print("submission keys:")
+        # for s in submissions[:5]:
+        #     print((s.participant_session_id, s.quiz_session_id), s.user_id)
+
+        for participant in participants:
+            submission = submission_by_session.get(
+                (participant.participant_session_id, participant.quiz_session_id)
+            )
 
             result = await self.evaluate(
                 course_id=course_id,
                 quiz_id=quiz_id,
-                user_id=user_id,
+                user_id=participant.user_id,
                 accommodation_type=accommodation_type,
             )
 
-            # submission = submission_map.get(user_id)
-
-            completed = None
-            # if submission:
-            #     completed = submission.date == "past"
+            completed = submission.date == "past" if submission else None
 
             rows.append(
                 AuditRow(
                     course_id=course_id,
                     quiz_id=quiz_id,
-                    user_id=user_id,
+                    user_id=participant.user_id,
                     accommodation_type=accommodation_type,
                     has_accommodation=result.has_accommodation,
                     completed=completed,
-                    reason=result.reason,
-                    details=result.details,
                 )
             )
 

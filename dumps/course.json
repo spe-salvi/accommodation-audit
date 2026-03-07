@@ -1,7 +1,7 @@
 {
-  "id": 12976,
+  "id": 12977,
   "name": "Christian Moral Principles",
-  "course_code": "THE-115-OL-B",
+  "course_code": "THE-115-OL-C",
   "account_id": 193,
   "created_at": "2025-09-19T18:16:09Z",
   "start_at": null,
@@ -10,7 +10,7 @@
   "is_public": false,
   "grading_standard_id": null,
   "root_account_id": 1,
-  "uuid": "mc8vrrmq77x3XYtoxf7ZM2QIqDylrpmABl4ysBCR",
+  "uuid": "nCynhvU7PzMzN0OGOfpqV1HWwVaiAg44gEoSPnQL",
   "license": "private",
   "grade_passback_setting": null,
   "end_at": null,
@@ -24,13 +24,13 @@
   "hide_final_grades": false,
   "apply_assignment_group_weights": true,
   "calendar": {
-    "ics": "https://franciscan.instructure.com/feeds/calendars/course_mc8vrrmq77x3XYtoxf7ZM2QIqDylrpmABl4ysBCR.ics"
+    "ics": "https://franciscan.instructure.com/feeds/calendars/course_nCynhvU7PzMzN0OGOfpqV1HWwVaiAg44gEoSPnQL.ics"
   },
   "time_zone": "America/New_York",
   "blueprint": false,
   "template": false,
-  "sis_course_id": "202520-THE-115-OL-B",
-  "sis_import_id": 6204,
+  "sis_course_id": "202520-THE-115-OL-C",
+  "sis_import_id": 6210,
   "integration_id": null,
   "enrollments": [],
   "workflow_state": "available",
