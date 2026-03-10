@@ -11,29 +11,28 @@ class JsonRepo:
         submission_path: Optional[str] = None,
         # items_path: Optional[str] = None,
     ):
-        self.participant_path = Path(participant_path)
+        self.participant_path = Path(participant_path) if participant_path else None
         self.submission_path = Path(submission_path) if submission_path else None
         # self.items_path = Path(items_path) if items_path else None
 
-    async def list_participants(self, *, course_id: int, quiz_id: int) -> list[Participant]:
-        data = json.loads(self.participant_path.read_text(encoding="utf-8"))
-        return Participant.list_from_api(course_id=course_id, quiz_id=quiz_id, payload=data)
+    async def list_participants(self, *, course_id: int, quiz_id: int, engine: str) -> list[Participant]:
+        data = json.loads(self.participant_path.read_text(encoding="utf-8")) if self.participant_path else []
+        return Participant.list_from_api(course_id=course_id, quiz_id=quiz_id, engine=engine, payload=data)
 
-    async def get_participant(self, *, course_id: int, quiz_id: int, user_id: int) -> Optional[Participant]:
-        participants = await self.list_participants(course_id=course_id, quiz_id=quiz_id)
+    async def get_participant(self, *, course_id: int, quiz_id: int, user_id: int, engine: str) -> Optional[Participant]:
+        participants = await self.list_participants(course_id=course_id, quiz_id=quiz_id, engine=engine)
         for p in participants:
             if p.user_id == user_id:
                 return p
         return None
     
-    async def list_submissions(self, *, course_id: int, quiz_id: int) -> list[Submission]:
-        if not self.submission_path:
-            return []
-
-        data = json.loads(self.submission_path.read_text(encoding="utf-8"))
-        submissions = []
-        for item in data:
-            s = Submission.from_api(course_id=course_id, quiz_id=quiz_id, data=item)
-            if s is not None:
-                submissions.append(s)
-        return submissions
+    async def list_submissions(self, *, course_id: int, quiz_id: int, engine: str) -> list[Submission]:
+        data = json.loads(self.submission_path.read_text(encoding="utf-8")) if self.submission_path else []
+        return Submission.list_from_api(course_id=course_id, quiz_id=quiz_id, engine=engine, payload=data)
+    
+    async def get_submission(self, *, course_id: int, quiz_id: int, engine: str, user_id: int) -> Optional[Submission]:
+        submissions = await self.list_submissions(course_id=course_id, quiz_id=quiz_id, engine=engine)
+        for s in submissions:
+            if s.course_id == course_id and s.user_id == user_id and s.quiz_id == quiz_id:
+                return s
+        return None

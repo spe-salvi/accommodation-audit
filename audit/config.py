@@ -12,7 +12,8 @@ API_URL = f'{BASE_URL}/api/v1'
 BETA_API_URL = f'{BETA_URL}/api/v1'
 FUS_ACCOUNT = '/accounts/1'
 HEADERS = {
-    "Authorization": "Bearer " + ACCESS_TOKEN_EL
+    "Authorization": "Bearer " + ACCESS_TOKEN_EL,
+    "User Agent" : "acc audit app"
     }
 
 MAX_WORKERS = 30
