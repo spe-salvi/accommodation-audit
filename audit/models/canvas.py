@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from typing import Any, Dict, Iterable, List, Optional
 from urllib.parse import urlparse, parse_qs
+from audit.models.parsing import parse_int, parse_str, validate_expected_id, parse_quiz_id, parse_submission_id, validate_engine_value, validate_payload_for_engine
 
 @dataclass(slots=True)
 class Term:
@@ -38,14 +39,18 @@ class Course:
     @property
     def key(self) -> int:
         return self.id
-
+    
     @classmethod
-    def from_api(cls, data: dict) -> "Course":
+    def from_api(cls, data: dict, course_id: int | None = None) -> "Course | None":
+        raw_course_id = parse_int(data.get("id"))
+        if validate_expected_id(course_id, raw_course_id) is None:
+            return None
+
         return cls(
-            id=int(data.get("id") or None),
-            name=str(data.get("name") or ""),
-            course_code=str(data.get("course_code") or None),
-            sis_course_id=str(data.get("sis_course_id") or None),
+            id=course_id,
+            name=parse_str(data.get("name")),
+            course_code=parse_str(data.get("course_code"), default="") or None,
+            sis_course_id=parse_str(data.get("sis_course_id"), default="") or None,
         )
 
     @classmethod
@@ -189,6 +194,7 @@ class Enrollment:
         return [cls.from_api(item) for item in payload]
 
 
+
 @dataclass(slots=True)
 class Submission:
     user_id: int
@@ -196,7 +202,7 @@ class Submission:
     quiz_id: int
     engine: str
     submission_id: int | None
-    attempt: int | None
+    attempt: int
     extra_attempts: int
     extra_time: int
     date: str
@@ -212,7 +218,9 @@ class Submission:
         return ""
 
     @staticmethod
-    def _parse_new_quiz_session_ids(external_tool_url: str | None) -> tuple[str | None, str | None]:
+    def _parse_new_quiz_session_ids(
+        external_tool_url: str | None,
+    ) -> tuple[str | None, str | None]:
         if not external_tool_url:
             return None, None
 
@@ -224,31 +232,47 @@ class Submission:
         )
 
     @classmethod
-    def from_api(cls, course_id: int, quiz_id: int, engine: str, data: dict) -> "Submission | None":
-        workflow_state = str(data.get("workflow_state") or "")
+    def from_api(
+        cls,
+        course_id: int,
+        quiz_id: int,
+        engine: str,
+        data: dict,
+    ) -> "Submission | None":
+        engine = validate_engine_value(engine)
+        validate_payload_for_engine(data, engine)
+
+        actual_quiz_id = validate_expected_id(
+            parse_quiz_id(data, engine),
+            expected=quiz_id,
+        )
+        user_id = parse_int(data.get("user_id"))
+        submission_id = parse_submission_id(data, engine)
+
+        if actual_quiz_id is None or user_id is None:
+            return None
+
+        workflow_state = parse_str(data.get("workflow_state"))
         date = cls._workflow_to_date(workflow_state)
 
         participant_session_id, quiz_session_id = cls._parse_new_quiz_session_ids(
-            data.get("external_tool_url")
+            parse_str(data.get("external_tool_url"), default="") or None
         )
-
-        raw_submission_id = int(data.get("submission_id") or 0) if engine == "classic" else int(data.get("id") or 0)
 
         return cls(
-            user_id=int(data.get("user_id") or None),
-            course_id=int(course_id),
-            quiz_id=int(quiz_id),
+            user_id=user_id,
+            course_id=course_id,
+            quiz_id=actual_quiz_id,
             engine=engine,
-            submission_id=raw_submission_id if raw_submission_id is not None else None,
-            attempt=int(data.get("attempt") or 0),
-            extra_attempts=int(data.get("extra_attempts") or 0),
-            extra_time=int(data.get("extra_time") or 0),
+            submission_id=submission_id,
+            attempt=parse_int(data.get("attempt"), 0) or 0,
+            extra_attempts=parse_int(data.get("extra_attempts"), 0) or 0,
+            extra_time=parse_int(data.get("extra_time"), 0) or 0,
             date=date,
-            participant_session_id=participant_session_id or None,
-            quiz_session_id=quiz_session_id or None,
+            participant_session_id=participant_session_id,
+            quiz_session_id=quiz_session_id,
         )
-    
-    
+
     @classmethod
     def list_from_api(
         cls,
@@ -257,11 +281,27 @@ class Submission:
         engine: str,
         payload: dict | list[dict],
     ) -> list["Submission"]:
-        # Classic quizzes: wrapped
+        engine = validate_engine_value(engine)
+
         if isinstance(payload, dict) and "quiz_submissions" in payload:
             payload = payload["quiz_submissions"]
 
-        return [cls.from_api(course_id=course_id, quiz_id=quiz_id, engine=engine, data=item) for item in payload]
+        if not isinstance(payload, list):
+            return []
+
+        submissions: list[Submission] = []
+        for item in payload:
+            submission = cls.from_api(
+                course_id=course_id,
+                quiz_id=quiz_id,
+                engine=engine,
+                data=item,
+            )
+            if submission is not None:
+                submissions.append(submission)
+
+        return submissions
+    
 
 @dataclass(slots=True)
 class NewQuizItem:

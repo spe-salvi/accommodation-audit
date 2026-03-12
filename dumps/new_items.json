@@ -1,0 +1,988 @@
+[
+  {
+    "id": "166757",
+    "position": 1,
+    "points_possible": 5,
+    "properties": {},
+    "entry_type": "Item",
+    "entry_editable": true,
+    "stimulus_quiz_entry_id": "",
+    "status": "immutable",
+    "entry": {
+      "title": "Question",
+      "item_body": "<div>   <p><span style=\"color: #000000; font-family: Arial, sans-serif; font-size: 13px; font-style: normal;      text-align: justify; text-indent: 0px;  white-space: normal;    background-color: #ffffff;   display: inline !important; float: none;\">What is Moral Theology? How does Moral Theology differ from Ethics? How do the teachings of Divine Revelation as Sacred Scripture and Sacred Tradition (Church Teaching) contribute to a discussion of the moral life?</span></p>  </div>",
+      "calculator_type": "none",
+      "interaction_data": {
+        "rce": true,
+        "essay": null,
+        "word_count": true,
+        "file_upload": false,
+        "spell_check": true,
+        "user_response": {
+          "value": {}
+        },
+        "word_limit_max": null,
+        "word_limit_min": null,
+        "word_limit_enabled": false
+      },
+      "properties": {
+        "word_limit": false,
+        "spell_check": false,
+        "word_limit_max": 0,
+        "word_limit_min": 0,
+        "show_word_count": false,
+        "rich_content_editor": false
+      },
+      "scoring_data": {
+        "value": ""
+      },
+      "answer_feedback": {},
+      "scoring_algorithm": "None",
+      "interaction_type_slug": "essay",
+      "feedback": {}
+    }
+  },
+  {
+    "id": "166758",
+    "position": 2,
+    "points_possible": 5,
+    "properties": {},
+    "entry_type": "Item",
+    "entry_editable": true,
+    "stimulus_quiz_entry_id": "",
+    "status": "immutable",
+    "entry": {
+      "title": "Question",
+      "item_body": "<div>\n<span style=\"color: #000000; font-family: Arial, sans-serif; font-size: 13px; font-style: normal;      text-align: justify; text-indent: 0px;  white-space: normal;    background-color: #ffffff;   display: inline !important; float: none;\">What is the significance of the&nbsp;</span>sequela Christi<span style=\"color: #000000; font-family: Arial, sans-serif; font-size: 13px; font-style: normal;      text-align: justify; text-indent: 0px;  white-space: normal;    background-color: #ffffff;   display: inline !important; float: none;\">&nbsp;(following Christ) for the Christian moral life? What characterizes the Gospel Morality proposed by St. Pope John Paul II in&nbsp;</span>Veritatis splendor,&nbsp;chapter one<span style=\"color: #000000; font-family: Arial, sans-serif; font-size: 13px; font-style: normal;      text-align: justify; text-indent: 0px;  white-space: normal;    background-color: #ffffff;   display: inline !important; float: none;\">?</span>\n</div>",
+      "calculator_type": "none",
+      "interaction_data": {
+        "rce": true,
+        "essay": null,
+        "word_count": true,
+        "file_upload": false,
+        "spell_check": true,
+        "user_response": {
+          "value": {}
+        },
+        "word_limit_max": null,
+        "word_limit_min": null,
+        "word_limit_enabled": false
+      },
+      "properties": {
+        "word_limit": false,
+        "spell_check": false,
+        "word_limit_max": 0,
+        "word_limit_min": 0,
+        "show_word_count": false,
+        "rich_content_editor": false
+      },
+      "scoring_data": {
+        "value": ""
+      },
+      "answer_feedback": {},
+      "scoring_algorithm": "None",
+      "interaction_type_slug": "essay",
+      "feedback": {}
+    }
+  },
+  {
+    "id": "141929",
+    "position": 3,
+    "points_possible": 0.5,
+    "properties": {},
+    "entry_type": "Item",
+    "entry_editable": true,
+    "stimulus_quiz_entry_id": "",
+    "status": "immutable",
+    "entry": {
+      "title": "Question",
+      "item_body": "<div>According to Pinckaers, Catholic moral theology must not approach the Bible from the perspective of the question of beatitude because this would eliminate many of the most important biblical texts, especially the Sermon on the Mount.</div>",
+      "calculator_type": "none",
+      "interaction_data": {
+        "choices": [
+          {
+            "id": "b62c31bf-dab1-4d5b-83fc-017b1abe2116",
+            "position": 1,
+            "item_body": "True"
+          },
+          {
+            "id": "82823327-0743-4ecd-bf7a-553fba201588",
+            "position": 2,
+            "item_body": "False"
+          }
+        ]
+      },
+      "properties": {
+        "shuffle_rules": {
+          "choices": {
+            "to_lock": [],
+            "shuffled": false
+          }
+        },
+        "vary_points_by_answer": false
+      },
+      "scoring_data": {
+        "value": "82823327-0743-4ecd-bf7a-553fba201588"
+      },
+      "answer_feedback": {},
+      "scoring_algorithm": "Equivalence",
+      "interaction_type_slug": "choice",
+      "feedback": {}
+    }
+  },
+  {
+    "id": "141931",
+    "position": 4,
+    "points_possible": 0.5,
+    "properties": {},
+    "entry_type": "Item",
+    "entry_editable": true,
+    "stimulus_quiz_entry_id": "",
+    "status": "immutable",
+    "entry": {
+      "title": "Question",
+      "item_body": "<div><span style=\"font-family: 'Arial','sans-serif';\">According to Pinckaers, even though Scripture remains the primary source for Christian morality in general, Scripture cannot provide answers to the new ethical problems created by advances in science and technology.</span></div>",
+      "calculator_type": "none",
+      "interaction_data": {
+        "choices": [
+          {
+            "id": "848e58fd-2ac7-4d0f-acaa-2d3b384c52a6",
+            "position": 1,
+            "item_body": "True"
+          },
+          {
+            "id": "d2c43cb0-8f4c-438e-8442-3f6f491331ed",
+            "position": 2,
+            "item_body": "False"
+          }
+        ]
+      },
+      "properties": {
+        "shuffle_rules": {
+          "choices": {
+            "to_lock": [],
+            "shuffled": false
+          }
+        },
+        "vary_points_by_answer": false
+      },
+      "scoring_data": {
+        "value": "d2c43cb0-8f4c-438e-8442-3f6f491331ed"
+      },
+      "answer_feedback": {},
+      "scoring_algorithm": "Equivalence",
+      "interaction_type_slug": "choice",
+      "feedback": {}
+    }
+  },
+  {
+    "id": "141934",
+    "position": 5,
+    "points_possible": 0.5,
+    "properties": {},
+    "entry_type": "Item",
+    "entry_editable": true,
+    "stimulus_quiz_entry_id": "",
+    "status": "immutable",
+    "entry": {
+      "title": "Question",
+      "item_body": "<div><span style=\"font-size: small; font-family: 'Arial','sans-serif';\">According to Pinckaers, like the moral theology of the Fathers of the Church and St. Thomas Aquinas, contemporary Catholic moral theology ought to focus on the acceptance of strict obligations in order to renew its link with the Biblical vision of the moral life.</span></div>",
+      "calculator_type": "none",
+      "interaction_data": {
+        "choices": [
+          {
+            "id": "600babea-e312-4b6b-9fd8-1705b5ecadd2",
+            "position": 1,
+            "item_body": "True"
+          },
+          {
+            "id": "a75b26be-cbeb-42c7-99e6-b44bddd7952f",
+            "position": 2,
+            "item_body": "False"
+          }
+        ]
+      },
+      "properties": {
+        "shuffle_rules": {
+          "choices": {
+            "to_lock": [],
+            "shuffled": false
+          }
+        },
+        "vary_points_by_answer": false
+      },
+      "scoring_data": {
+        "value": "a75b26be-cbeb-42c7-99e6-b44bddd7952f"
+      },
+      "answer_feedback": {},
+      "scoring_algorithm": "Equivalence",
+      "interaction_type_slug": "choice",
+      "feedback": {}
+    }
+  },
+  {
+    "id": "141936",
+    "position": 6,
+    "points_possible": 0.5,
+    "properties": {},
+    "entry_type": "Item",
+    "entry_editable": true,
+    "stimulus_quiz_entry_id": "",
+    "status": "immutable",
+    "entry": {
+      "title": "Question",
+      "item_body": "<div><span style=\"font-size: small; font-family: 'Arial','sans-serif';\">According to Pinckaers, paraclesis should be considered the form of moral teaching in apostolic catechesis and should be seen as a major resource for Christian ethics.</span></div>",
+      "calculator_type": "none",
+      "interaction_data": {
+        "choices": [
+          {
+            "id": "52ebd9b2-49e9-48ea-ac8c-6a05d6201c48",
+            "position": 1,
+            "item_body": "True"
+          },
+          {
+            "id": "bf8c9de7-021d-4a9c-a360-b9266e9b3fbe",
+            "position": 2,
+            "item_body": "False"
+          }
+        ]
+      },
+      "properties": {
+        "shuffle_rules": {
+          "choices": {
+            "to_lock": [],
+            "shuffled": false
+          }
+        },
+        "vary_points_by_answer": false
+      },
+      "scoring_data": {
+        "value": "52ebd9b2-49e9-48ea-ac8c-6a05d6201c48"
+      },
+      "answer_feedback": {},
+      "scoring_algorithm": "Equivalence",
+      "interaction_type_slug": "choice",
+      "feedback": {}
+    }
+  },
+  {
+    "id": "141938",
+    "position": 7,
+    "points_possible": 0.5,
+    "properties": {},
+    "entry_type": "Item",
+    "entry_editable": true,
+    "stimulus_quiz_entry_id": "",
+    "status": "immutable",
+    "entry": {
+      "title": "Question",
+      "item_body": "<div>\n<p><span style=\"font-family: 'Arial','sans-serif';\"><span>According to <span>Pinckaers</span>, the teaching of the Sermon on the Mount is fundamentally dynamic; it is animated by a continuous tendency toward exceeding and surpassing, a tendency </span>toward the progress and perfection of love in imitation of the Father’s goodness.</span></p>\n<p>&nbsp;</p>\n</div>",
+      "calculator_type": "none",
+      "interaction_data": {
+        "choices": [
+          {
+            "id": "38109564-0d79-4bf3-b08b-91e61f206f16",
+            "position": 1,
+            "item_body": "True"
+          },
+          {
+            "id": "2dfe870f-afe2-478f-9c09-cae7a46dd253",
+            "position": 2,
+            "item_body": "False"
+          }
+        ]
+      },
+      "properties": {
+        "shuffle_rules": {
+          "choices": {
+            "to_lock": [],
+            "shuffled": false
+          }
+        },
+        "vary_points_by_answer": false
+      },
+      "scoring_data": {
+        "value": "38109564-0d79-4bf3-b08b-91e61f206f16"
+      },
+      "answer_feedback": {},
+      "scoring_algorithm": "Equivalence",
+      "interaction_type_slug": "choice",
+      "feedback": {}
+    }
+  },
+  {
+    "id": "141940",
+    "position": 8,
+    "points_possible": 0.5,
+    "properties": {},
+    "entry_type": "Item",
+    "entry_editable": true,
+    "stimulus_quiz_entry_id": "",
+    "status": "immutable",
+    "entry": {
+      "title": "Question",
+      "item_body": "<div><span style=\"font-family: 'Arial','sans-serif';\">According to William May, no specific moral doctrine has ever been taught infallibly by the Magisterium of the Church, but the moral teachings of the Church deserve a degree of respect from the faithful as part of correctly forming one’s own conscience.</span></div>",
+      "calculator_type": "none",
+      "interaction_data": {
+        "choices": [
+          {
+            "id": "519ecede-43ad-43a6-a3fa-93bbafd5bec5",
+            "position": 1,
+            "item_body": "True"
+          },
+          {
+            "id": "54d9bbff-816d-4d1c-9873-21a5bb74dacb",
+            "position": 2,
+            "item_body": "False"
+          }
+        ]
+      },
+      "properties": {
+        "shuffle_rules": {
+          "choices": {
+            "to_lock": [],
+            "shuffled": false
+          }
+        },
+        "vary_points_by_answer": false
+      },
+      "scoring_data": {
+        "value": "54d9bbff-816d-4d1c-9873-21a5bb74dacb"
+      },
+      "answer_feedback": {},
+      "scoring_algorithm": "Equivalence",
+      "interaction_type_slug": "choice",
+      "feedback": {}
+    }
+  },
+  {
+    "id": "141942",
+    "position": 9,
+    "points_possible": 0.5,
+    "properties": {},
+    "entry_type": "Item",
+    "entry_editable": true,
+    "stimulus_quiz_entry_id": "",
+    "status": "immutable",
+    "entry": {
+      "title": "Question",
+      "item_body": "<div><span style=\"font-family: 'Arial','sans-serif';\">According to William May, authentic Catholic moral theology includes the right of theologians and of the faithful to dissent from any official Magisterial teaching in order to exercise the freedom conscience held dear by Catholics.</span></div>",
+      "calculator_type": "none",
+      "interaction_data": {
+        "choices": [
+          {
+            "id": "f54e0d05-45eb-4e5d-b0a2-7090b34f74ab",
+            "position": 1,
+            "item_body": "True"
+          },
+          {
+            "id": "e31b9e20-5ec2-4141-a8ce-f46082052098",
+            "position": 2,
+            "item_body": "False"
+          }
+        ]
+      },
+      "properties": {
+        "shuffle_rules": {
+          "choices": {
+            "to_lock": [],
+            "shuffled": false
+          }
+        },
+        "vary_points_by_answer": false
+      },
+      "scoring_data": {
+        "value": "e31b9e20-5ec2-4141-a8ce-f46082052098"
+      },
+      "answer_feedback": {},
+      "scoring_algorithm": "Equivalence",
+      "interaction_type_slug": "choice",
+      "feedback": {}
+    }
+  },
+  {
+    "id": "141944",
+    "position": 10,
+    "points_possible": 0.5,
+    "properties": {},
+    "entry_type": "Item",
+    "entry_editable": true,
+    "stimulus_quiz_entry_id": "",
+    "status": "immutable",
+    "entry": {
+      "title": "Question",
+      "item_body": "<div><span style=\"font-family: 'Arial','sans-serif';\">According to William May, authentic Catholic moral theology includes the right of theologians to raise questions regarding official Magisterial teachings.</span></div>",
+      "calculator_type": "none",
+      "interaction_data": {
+        "choices": [
+          {
+            "id": "06ffa1ce-84d8-44c1-87c4-086accc0a913",
+            "position": 1,
+            "item_body": "True"
+          },
+          {
+            "id": "b29e0083-7cbb-490f-bef6-ab4220b0031a",
+            "position": 2,
+            "item_body": "False"
+          }
+        ]
+      },
+      "properties": {
+        "shuffle_rules": {
+          "choices": {
+            "to_lock": [],
+            "shuffled": false
+          }
+        },
+        "vary_points_by_answer": false
+      },
+      "scoring_data": {
+        "value": "06ffa1ce-84d8-44c1-87c4-086accc0a913"
+      },
+      "answer_feedback": {},
+      "scoring_algorithm": "Equivalence",
+      "interaction_type_slug": "choice",
+      "feedback": {}
+    }
+  },
+  {
+    "id": "141947",
+    "position": 11,
+    "points_possible": 0.5,
+    "properties": {},
+    "entry_type": "Item",
+    "entry_editable": true,
+    "stimulus_quiz_entry_id": "",
+    "status": "immutable",
+    "entry": {
+      "title": "Question",
+      "item_body": "<div>\n<p><span style=\"font-family: 'Arial','sans-serif';\">According to William May, the Magisterium of the Catholic Church has the authority to teach in Christ’s name both truths that must be believed – such truths about God – and truths that must be lived – such as moral truths regarding human choices and actions.</span></p>\n<p>&nbsp;</p>\n</div>",
+      "calculator_type": "none",
+      "interaction_data": {
+        "choices": [
+          {
+            "id": "9b858a2c-2a7a-4d02-bdbf-f9d251c72dfe",
+            "position": 1,
+            "item_body": "True"
+          },
+          {
+            "id": "4e5d89d6-459c-454f-ab26-f9de28da69c7",
+            "position": 2,
+            "item_body": "False"
+          }
+        ]
+      },
+      "properties": {
+        "shuffle_rules": {
+          "choices": {
+            "to_lock": [],
+            "shuffled": false
+          }
+        },
+        "vary_points_by_answer": false
+      },
+      "scoring_data": {
+        "value": "9b858a2c-2a7a-4d02-bdbf-f9d251c72dfe"
+      },
+      "answer_feedback": {},
+      "scoring_algorithm": "Equivalence",
+      "interaction_type_slug": "choice",
+      "feedback": {}
+    }
+  },
+  {
+    "id": "141949",
+    "position": 12,
+    "points_possible": 0.5,
+    "properties": {},
+    "entry_type": "Item",
+    "entry_editable": true,
+    "stimulus_quiz_entry_id": "",
+    "status": "immutable",
+    "entry": {
+      "title": "Question",
+      "item_body": "<div>\n<p><span style=\"font-family: 'Arial','sans-serif';\">According to William May, while the bishops have the authority to interpret Scripture, it remains outside the responsibility of the Magisterium to distinguish between theological positions that are compatible with authentic Christian living and those which are not, for only the theologians of the Church are qualified to make such distinctions.</span></p>\n<p>&nbsp;</p>\n</div>",
+      "calculator_type": "none",
+      "interaction_data": {
+        "choices": [
+          {
+            "id": "94b6a711-0f4a-45a8-8fb2-ff885a107373",
+            "position": 1,
+            "item_body": "True"
+          },
+          {
+            "id": "e5c247ad-5422-4cc9-a3b3-325cfc8a9760",
+            "position": 2,
+            "item_body": "False"
+          }
+        ]
+      },
+      "properties": {
+        "shuffle_rules": {
+          "choices": {
+            "to_lock": [],
+            "shuffled": false
+          }
+        },
+        "vary_points_by_answer": false
+      },
+      "scoring_data": {
+        "value": "e5c247ad-5422-4cc9-a3b3-325cfc8a9760"
+      },
+      "answer_feedback": {},
+      "scoring_algorithm": "Equivalence",
+      "interaction_type_slug": "choice",
+      "feedback": {}
+    }
+  },
+  {
+    "id": "141951",
+    "position": 13,
+    "points_possible": 0.5,
+    "properties": {},
+    "entry_type": "Item",
+    "entry_editable": true,
+    "stimulus_quiz_entry_id": "",
+    "status": "immutable",
+    "entry": {
+      "title": "Question",
+      "item_body": "<div><span style=\"font-family: 'Arial','sans-serif';\">According to Veritatis splendor, the acceptance of God’s law marks the end of freedom but is the beginning of “life in the truth.”</span></div>",
+      "calculator_type": "none",
+      "interaction_data": {
+        "choices": [
+          {
+            "id": "9880b471-8a1e-49cf-9203-bbc88581447c",
+            "position": 1,
+            "item_body": "True"
+          },
+          {
+            "id": "a8f9592f-c4ad-4e85-adef-fafb9e92ea6f",
+            "position": 2,
+            "item_body": "False"
+          }
+        ]
+      },
+      "properties": {
+        "shuffle_rules": {
+          "choices": {
+            "to_lock": [],
+            "shuffled": false
+          }
+        },
+        "vary_points_by_answer": false
+      },
+      "scoring_data": {
+        "value": "a8f9592f-c4ad-4e85-adef-fafb9e92ea6f"
+      },
+      "answer_feedback": {},
+      "scoring_algorithm": "Equivalence",
+      "interaction_type_slug": "choice",
+      "feedback": {}
+    }
+  },
+  {
+    "id": "141955",
+    "position": 14,
+    "points_possible": 0.5,
+    "properties": {},
+    "entry_type": "Item",
+    "entry_editable": true,
+    "stimulus_quiz_entry_id": "",
+    "status": "immutable",
+    "entry": {
+      "title": "Question",
+      "item_body": "<div>\n<p><span style=\"font-family: 'Arial','sans-serif';\">According to Veritatis splendor, Jesus brings God’s commandments to fulfillment, particularly the commandment of love of neighbor, by interiorizing their demands and by bringing out their fullest meaning.</span></p>\n<p>&nbsp;</p>\n</div>",
+      "calculator_type": "none",
+      "interaction_data": {
+        "choices": [
+          {
+            "id": "d72bd6f2-7eb6-4317-9060-228df8047276",
+            "position": 1,
+            "item_body": "True"
+          },
+          {
+            "id": "d14f429a-e71b-4026-8e20-be18d4dff5ba",
+            "position": 2,
+            "item_body": "False"
+          }
+        ]
+      },
+      "properties": {
+        "shuffle_rules": {
+          "choices": {
+            "to_lock": [],
+            "shuffled": false
+          }
+        },
+        "vary_points_by_answer": false
+      },
+      "scoring_data": {
+        "value": "d72bd6f2-7eb6-4317-9060-228df8047276"
+      },
+      "answer_feedback": {},
+      "scoring_algorithm": "Equivalence",
+      "interaction_type_slug": "choice",
+      "feedback": {}
+    }
+  },
+  {
+    "id": "141957",
+    "position": 15,
+    "points_possible": 0.5,
+    "properties": {},
+    "entry_type": "Item",
+    "entry_editable": true,
+    "stimulus_quiz_entry_id": "",
+    "status": "immutable",
+    "entry": {
+      "title": "Question",
+      "item_body": "<div><span style=\"font-family: 'Arial','sans-serif';\">According to Veritatis splendor, the moral life presents itself as the response due to the many gratuitous initiatives taken by God out of love for man. </span></div>",
+      "calculator_type": "none",
+      "interaction_data": {
+        "choices": [
+          {
+            "id": "0bde221c-ca3a-4942-95a1-60da4ab94e25",
+            "position": 1,
+            "item_body": "True"
+          },
+          {
+            "id": "809bdfe6-31c5-460d-b447-bc2737e12df2",
+            "position": 2,
+            "item_body": "False"
+          }
+        ]
+      },
+      "properties": {
+        "shuffle_rules": {
+          "choices": {
+            "to_lock": [],
+            "shuffled": false
+          }
+        },
+        "vary_points_by_answer": false
+      },
+      "scoring_data": {
+        "value": "0bde221c-ca3a-4942-95a1-60da4ab94e25"
+      },
+      "answer_feedback": {},
+      "scoring_algorithm": "Equivalence",
+      "interaction_type_slug": "choice",
+      "feedback": {}
+    }
+  },
+  {
+    "id": "141958",
+    "position": 16,
+    "points_possible": 0.5,
+    "properties": {},
+    "entry_type": "Item",
+    "entry_editable": true,
+    "stimulus_quiz_entry_id": "",
+    "status": "immutable",
+    "entry": {
+      "title": "Question",
+      "item_body": "<div><span style=\"font-family: 'Arial','sans-serif';\">According to Veritatis splendor, those who live by the flesh experience God’s law as a burden, and indeed as a denial or at least a restriction of their own freedom, while those who are impelled by love and walk by the Spirit find in God’s law the fundamental and necessary way in which to practice love as something freely chosen and freely lived out.</span></div>",
+      "calculator_type": "none",
+      "interaction_data": {
+        "choices": [
+          {
+            "id": "f791aabf-5856-4383-938c-e59de0a90101",
+            "position": 1,
+            "item_body": "True"
+          },
+          {
+            "id": "309eb3b0-6080-4bd6-9caa-63fdee35641c",
+            "position": 2,
+            "item_body": "False"
+          }
+        ]
+      },
+      "properties": {
+        "shuffle_rules": {
+          "choices": {
+            "to_lock": [],
+            "shuffled": false
+          }
+        },
+        "vary_points_by_answer": false
+      },
+      "scoring_data": {
+        "value": "f791aabf-5856-4383-938c-e59de0a90101"
+      },
+      "answer_feedback": {},
+      "scoring_algorithm": "Equivalence",
+      "interaction_type_slug": "choice",
+      "feedback": {}
+    }
+  },
+  {
+    "id": "141960",
+    "position": 17,
+    "points_possible": 0.5,
+    "properties": {},
+    "entry_type": "Item",
+    "entry_editable": true,
+    "stimulus_quiz_entry_id": "",
+    "status": "immutable",
+    "entry": {
+      "title": "Question",
+      "item_body": "<div><span style=\"font-family: 'Arial','sans-serif';\">According to Veritatis splendor, to imitate and live out the love of Christ is not possible for man by his own strength alone; man is capable of this love only by virtue of the gift of grace.</span></div>",
+      "calculator_type": "none",
+      "interaction_data": {
+        "choices": [
+          {
+            "id": "11b1e782-6651-48c9-9d0d-ce74e49857f5",
+            "position": 1,
+            "item_body": "True"
+          },
+          {
+            "id": "020f9579-626b-4a75-bfe9-4e14658cfb1e",
+            "position": 2,
+            "item_body": "False"
+          }
+        ]
+      },
+      "properties": {
+        "shuffle_rules": {
+          "choices": {
+            "to_lock": [],
+            "shuffled": false
+          }
+        },
+        "vary_points_by_answer": false
+      },
+      "scoring_data": {
+        "value": "11b1e782-6651-48c9-9d0d-ce74e49857f5"
+      },
+      "answer_feedback": {},
+      "scoring_algorithm": "Equivalence",
+      "interaction_type_slug": "choice",
+      "feedback": {}
+    }
+  },
+  {
+    "id": "141962",
+    "position": 18,
+    "points_possible": 0.5,
+    "properties": {},
+    "entry_type": "Item",
+    "entry_editable": true,
+    "stimulus_quiz_entry_id": "",
+    "status": "immutable",
+    "entry": {
+      "title": "Question",
+      "item_body": "<div>According to the <em>Franciscan Rule of 1221</em>,&nbsp;if a friar is clearly determined to live according to the flesh and not according to the spirit.&nbsp;no matter where he is,&nbsp;the others are bound to warn,&nbsp;instruct and correct him with humble charity.</div>",
+      "calculator_type": "none",
+      "interaction_data": {
+        "choices": [
+          {
+            "id": "4f5a4c59-7b80-4d00-b5fd-70ffbddc47f7",
+            "position": 1,
+            "item_body": "True"
+          },
+          {
+            "id": "3632cf4d-34fe-42f8-a1ef-47977fd2bf34",
+            "position": 2,
+            "item_body": "False"
+          }
+        ]
+      },
+      "properties": {
+        "shuffle_rules": {
+          "choices": {
+            "to_lock": [],
+            "shuffled": false
+          }
+        },
+        "vary_points_by_answer": false
+      },
+      "scoring_data": {
+        "value": "4f5a4c59-7b80-4d00-b5fd-70ffbddc47f7"
+      },
+      "answer_feedback": {},
+      "scoring_algorithm": "Equivalence",
+      "interaction_type_slug": "choice",
+      "feedback": {}
+    }
+  },
+  {
+    "id": "141966",
+    "position": 19,
+    "points_possible": 0.5,
+    "properties": {},
+    "entry_type": "Item",
+    "entry_editable": true,
+    "stimulus_quiz_entry_id": "",
+    "status": "immutable",
+    "entry": {
+      "title": "Question",
+      "item_body": "<div>According to the <em>Franciscan Rule of 1221</em>,&nbsp;friars are forbidden to accept money as alms and may only accept money in payment for the work they do in service to lay people.</div>",
+      "calculator_type": "none",
+      "interaction_data": {
+        "choices": [
+          {
+            "id": "1ec0897b-228c-4866-82ab-1c98a3b9c0db",
+            "position": 1,
+            "item_body": "True"
+          },
+          {
+            "id": "c6ff5319-cdbf-410b-afde-9d34cce0c21b",
+            "position": 2,
+            "item_body": "False"
+          }
+        ]
+      },
+      "properties": {
+        "shuffle_rules": {
+          "choices": {
+            "to_lock": [],
+            "shuffled": false
+          }
+        },
+        "vary_points_by_answer": false
+      },
+      "scoring_data": {
+        "value": "c6ff5319-cdbf-410b-afde-9d34cce0c21b"
+      },
+      "answer_feedback": {},
+      "scoring_algorithm": "Equivalence",
+      "interaction_type_slug": "choice",
+      "feedback": {}
+    }
+  },
+  {
+    "id": "141967",
+    "position": 20,
+    "points_possible": 0.5,
+    "properties": {},
+    "entry_type": "Item",
+    "entry_editable": true,
+    "stimulus_quiz_entry_id": "",
+    "status": "immutable",
+    "entry": {
+      "title": "Question",
+      "item_body": "<div>According to the<em>Franciscan Rule of1221</em>,&nbsp;if a friar falls ill, the other friars are to&nbsp;leave him and entrust his wellbeing to God's providence, lest they be detained in fulfilling the work that God has given them.</div>",
+      "calculator_type": "none",
+      "interaction_data": {
+        "choices": [
+          {
+            "id": "ae8c9c43-b668-4793-9134-b41ec60466d6",
+            "position": 1,
+            "item_body": "True"
+          },
+          {
+            "id": "d65d8864-cc07-44aa-8cd2-0194b7cf043e",
+            "position": 2,
+            "item_body": "False"
+          }
+        ]
+      },
+      "properties": {
+        "shuffle_rules": {
+          "choices": {
+            "to_lock": [],
+            "shuffled": false
+          }
+        },
+        "vary_points_by_answer": false
+      },
+      "scoring_data": {
+        "value": "d65d8864-cc07-44aa-8cd2-0194b7cf043e"
+      },
+      "answer_feedback": {},
+      "scoring_algorithm": "Equivalence",
+      "interaction_type_slug": "choice",
+      "feedback": {}
+    }
+  },
+  {
+    "id": "141968",
+    "position": 21,
+    "points_possible": 0.5,
+    "properties": {},
+    "entry_type": "Item",
+    "entry_editable": true,
+    "stimulus_quiz_entry_id": "",
+    "status": "immutable",
+    "entry": {
+      "title": "Question",
+      "item_body": "<div>According to the <em>Franciscan Rule of 1221</em>,&nbsp;if a friar is tempted and commits fornication,&nbsp;he must be deprived of his habit.&nbsp;By his wickedness he has lost the right to wear it and he must lay it aside completely and be dismissed from the order.</div>",
+      "calculator_type": "none",
+      "interaction_data": {
+        "choices": [
+          {
+            "id": "ff7bd976-e5c0-4fb5-b160-5e5ee3a7c3e0",
+            "position": 1,
+            "item_body": "True"
+          },
+          {
+            "id": "e268be8e-7a30-4e2d-82d3-2c5f02dfd314",
+            "position": 2,
+            "item_body": "False"
+          }
+        ]
+      },
+      "properties": {
+        "shuffle_rules": {
+          "choices": {
+            "to_lock": [],
+            "shuffled": false
+          }
+        },
+        "vary_points_by_answer": false
+      },
+      "scoring_data": {
+        "value": "ff7bd976-e5c0-4fb5-b160-5e5ee3a7c3e0"
+      },
+      "answer_feedback": {},
+      "scoring_algorithm": "Equivalence",
+      "interaction_type_slug": "choice",
+      "feedback": {}
+    }
+  },
+  {
+    "id": "141969",
+    "position": 22,
+    "points_possible": 0.5,
+    "properties": {},
+    "entry_type": "Item",
+    "entry_editable": true,
+    "stimulus_quiz_entry_id": "",
+    "status": "immutable",
+    "entry": {
+      "title": "Question",
+      "item_body": "<div>According to the <em>Franciscan Rule of 1221</em>,&nbsp;our friends are those who for no reason cause us trouble and suffering, shame or injury, pain or torture, even martyrdom and death.</div>",
+      "calculator_type": "none",
+      "interaction_data": {
+        "choices": [
+          {
+            "id": "01ed53df-969a-4958-af32-f7ea4242cd25",
+            "position": 1,
+            "item_body": "True"
+          },
+          {
+            "id": "f4939e35-14a5-45ca-b8fb-c88256c0165f",
+            "position": 2,
+            "item_body": "False"
+          }
+        ]
+      },
+      "properties": {
+        "shuffle_rules": {
+          "choices": {
+            "to_lock": [],
+            "shuffled": false
+          }
+        },
+        "vary_points_by_answer": false
+      },
+      "scoring_data": {
+        "value": "01ed53df-969a-4958-af32-f7ea4242cd25"
+      },
+      "answer_feedback": {},
+      "scoring_algorithm": "Equivalence",
+      "interaction_type_slug": "choice",
+      "feedback": {}
+    }
+  }
+]

@@ -10,28 +10,34 @@ DUMPS_DIR = BASE_DIR / "dumps"
 async def demo():
     repo = JsonRepo(
         participant_path=DUMPS_DIR / "participants.json",
+        # submission_path=DUMPS_DIR / "new_submissions.json",
         submission_path=DUMPS_DIR / "classic_submissions.json",
+        items_path=DUMPS_DIR / "new_items.json",
         )
     
     svc = AccommodationService(repo)
 
-    # rows = await svc.audit(
-    #     AuditRequest(
-    #         course_id=12976,
-    #         quiz_id=48379,
-    #         engine="classic",
-    #         accommodation_type=AccommodationType.EXTRA_TIME,
-    #     )
-    # )
-
-    rows = await svc.audit(
+    rows = await svc.audit_accommodation(
         AuditRequest(
             course_id=12976,
-            quiz_id=189407,
-            engine="new",
-            accommodation_type=AccommodationType.EXTRA_TIME,
+            quiz_id=48379,
+            engine="classic",
+            # accommodation_type=AccommodationType.EXTRA_ATTEMPT
+            # accommodation_type=AccommodationType.EXTRA_TIME
+            accommodation_type=AccommodationType.SPELL_CHECK
         )
     )
+
+    # rows = await svc.audit_accommodation(
+    #     AuditRequest(
+    #         course_id=12976,
+    #         quiz_id=189407,
+    #         engine="new",
+    #         # accommodation_type=AccommodationType.EXTRA_ATTEMPT,
+    #         # accommodation_type=AccommodationType.EXTRA_TIME,
+    #         accommodation_type=AccommodationType.SPELL_CHECK,
+    #     )
+    # )
 
     for row in rows:
         print(row)
