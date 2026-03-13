@@ -326,6 +326,33 @@ class AccommodationService:
             )
 
         return rows
+    
+
+    async def audit_course(
+        self,
+        *,
+        course_id: int,
+        engine: str,
+        accommodation_types: Iterable[AccommodationType] | None = None,
+    ) -> list[AuditRow]:
+        quizzes = await self.repo.list_quizzes(
+            course_id=course_id,
+            engine=engine,
+        )
+
+        rows: list[AuditRow] = []
+
+        for quiz in quizzes:
+            quiz_rows = await self.audit_quiz(
+                course_id=course_id,
+                quiz_id=quiz.id,
+                engine=engine,
+                accommodation_types=accommodation_types,
+            )
+            rows.extend(quiz_rows)
+
+        return rows
+
 
     # ----------------------------
     # Matching
