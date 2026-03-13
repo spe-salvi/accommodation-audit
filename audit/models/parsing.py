@@ -20,14 +20,10 @@ def validate_expected_id(raw_value: Any, expected: int) -> int | None:
     return parsed if parsed == expected else None
     
 def parse_quiz_id(data: dict, engine: str) -> int | None:
-    if engine == "classic":
-        return parse_int(data.get("quiz_id"))
     return parse_int(data.get("id"))
 
 
 def parse_submission_id(data: dict, engine: str) -> int | None:
-    if engine == "classic":
-        return parse_int(data.get("submission_id"))
     return parse_int(data.get("id"))
 
 
@@ -53,21 +49,3 @@ def validate_payload_for_engine(data: dict, engine: QuizEngine) -> None:
         return
 
     raise ValueError(f"Unsupported engine: {engine!r}")
-
-
-def parse_quiz_id(data: dict, engine: QuizEngine) -> int | None:
-    if engine == "classic":
-        return parse_int(data.get("quiz_id"))
-    return parse_int(data.get("assignment_id"))
-
-
-def parse_submission_id(data: dict, engine: QuizEngine) -> int | None:
-    if engine == "classic":
-        return parse_int(data.get("id"))
-    return parse_int(data.get("id"))
-
-
-def validate_expected_id(actual: int | None, expected: int) -> int | None:
-    if actual is None:
-        return None
-    return actual if actual == expected else None

@@ -13,6 +13,8 @@ async def demo():
         # submission_path=DUMPS_DIR / "new_submissions.json",
         submission_path=DUMPS_DIR / "classic_submissions.json",
         items_path=DUMPS_DIR / "new_items.json",
+        quizzes_path=DUMPS_DIR / "classic_quiz.json",
+        # quizzes_path=DUMPS_DIR / "new_quiz.json",
         )
     
     svc = AccommodationService(repo)

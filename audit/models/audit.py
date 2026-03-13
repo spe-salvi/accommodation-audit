@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional, Dict
 from audit.repos.base import AccommodationType
 
@@ -12,7 +12,7 @@ class AuditRow:
     engine: str | None = None
     accommodation_type: AccommodationType | None = None
     has_accommodation: bool = False
-    details: Dict[str, object] = None
+    details: Dict[str, object] = field(default_factory=dict)
     completed: Optional[bool] = None
 
 @dataclass(frozen=True, slots=True)
