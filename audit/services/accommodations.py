@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Callable
+from typing import Callable, Iterable
 
 from audit.models.audit import AuditRow, AuditRequest
 from audit.models.canvas import Participant, Submission, NewQuizItem
@@ -20,6 +20,18 @@ class EvaluationContext:
     items: list[NewQuizItem] | None = None
 
 
+@dataclass(frozen=True)
+class QuizAuditContext:
+    course_id: int
+    quiz_id: int
+    engine: str
+    participants: list[Participant]
+    submissions: list[Submission]
+    items: list[NewQuizItem]
+    submissions_by_user: dict[int, Submission]
+    submissions_by_session: dict[tuple[str | None, str | None], Submission]
+
+
 Evaluator = Callable[[EvaluationContext], AccommodationResult]
 
 
@@ -32,6 +44,10 @@ class AccommodationService:
             ("new", AccommodationType.EXTRA_ATTEMPT): self._evaluate_extra_attempts,
             ("classic", AccommodationType.EXTRA_ATTEMPT): self._evaluate_extra_attempts,
         }
+
+    # ----------------------------
+    # Context builders / loaders
+    # ----------------------------
 
     def _build_evaluation_context(
         self,
@@ -46,7 +62,7 @@ class AccommodationService:
             participant=participant,
             submission=submission,
             items=items,
-    )
+        )
 
     async def _load_evaluation_context(
         self,
@@ -100,6 +116,55 @@ class AccommodationService:
             items=items,
         )
 
+    async def _load_quiz_audit_context(
+        self,
+        *,
+        course_id: int,
+        quiz_id: int,
+        engine: str,
+    ) -> QuizAuditContext:
+        participants = await self.repo.list_participants(
+            course_id=course_id,
+            quiz_id=quiz_id,
+            engine=engine,
+        )
+
+        submissions = await self.repo.list_submissions(
+            course_id=course_id,
+            quiz_id=quiz_id,
+            engine=engine,
+        )
+
+        items: list[NewQuizItem] = []
+        if engine == "new":
+            items = await self.repo.list_items(
+                course_id=course_id,
+                quiz_id=quiz_id,
+                engine=engine,
+            )
+
+        submissions_by_user = {s.user_id: s for s in submissions}
+        submissions_by_session = {
+            (s.participant_session_id, s.quiz_session_id): s
+            for s in submissions
+            if s.participant_session_id is not None or s.quiz_session_id is not None
+        }
+
+        return QuizAuditContext(
+            course_id=course_id,
+            quiz_id=quiz_id,
+            engine=engine,
+            participants=participants,
+            submissions=submissions,
+            items=items,
+            submissions_by_user=submissions_by_user,
+            submissions_by_session=submissions_by_session,
+        )
+
+    # ----------------------------
+    # Single-result evaluation
+    # ----------------------------
+
     def evaluate_models(
         self,
         *,
@@ -108,10 +173,7 @@ class AccommodationService:
     ) -> AccommodationResult:
         handler = self._evaluators.get((ctx.engine, accommodation_type))
         if handler is None:
-            return AccommodationResult(
-                False,
-                {},
-            )
+            return AccommodationResult(False, {})
         return handler(ctx)
 
     async def evaluate(
@@ -134,80 +196,129 @@ class AccommodationService:
             accommodation_type=accommodation_type,
             ctx=ctx,
         )
-        
+
+    # ----------------------------
+    # Audit APIs
+    # ----------------------------
 
     async def audit_accommodation(self, request: AuditRequest) -> list[AuditRow]:
-        if request.accommodation_type == AccommodationType.SPELL_CHECK:
-            if request.engine != "new":
+        ctx = await self._load_quiz_audit_context(
+            course_id=request.course_id,
+            quiz_id=request.quiz_id,
+            engine=request.engine,
+        )
+        return self._audit_accommodation_with_quiz_context(
+            ctx=ctx,
+            accommodation_type=request.accommodation_type,
+        )
+
+    async def audit_quiz(
+        self,
+        *,
+        course_id: int,
+        quiz_id: int,
+        engine: str,
+        accommodation_types: Iterable[AccommodationType] | None = None,
+    ) -> list[AuditRow]:
+        if accommodation_types is None:
+            requested = [
+                AccommodationType.EXTRA_TIME,
+                AccommodationType.EXTRA_ATTEMPT,
+                AccommodationType.SPELL_CHECK,
+            ]
+        else:
+            requested = list(accommodation_types)
+
+        if engine != "new":
+            requested = [
+                a for a in requested
+                if a != AccommodationType.SPELL_CHECK
+            ]
+
+        ctx = await self._load_quiz_audit_context(
+            course_id=course_id,
+            quiz_id=quiz_id,
+            engine=engine,
+        )
+
+        rows: list[AuditRow] = []
+        for accommodation_type in requested:
+            rows.extend(
+                self._audit_accommodation_with_quiz_context(
+                    ctx=ctx,
+                    accommodation_type=accommodation_type,
+                )
+            )
+        return rows
+
+    def _audit_accommodation_with_quiz_context(
+        self,
+        *,
+        ctx: QuizAuditContext,
+        accommodation_type: AccommodationType,
+    ) -> list[AuditRow]:
+        if accommodation_type == AccommodationType.SPELL_CHECK:
+            if ctx.engine != "new":
                 return []
 
-            items = await self.repo.list_items(
-                course_id=request.course_id,
-                quiz_id=request.quiz_id,
-                engine=request.engine,
-            )
-            ctx = self._build_evaluation_context(
-                engine=request.engine,
-                items=items,
-            )
-            return self._build_spell_check_rows_from_context(
-                course_id=request.course_id,
-                quiz_id=request.quiz_id,
-                user_id=request.user_id,
-                engine=request.engine,
-                ctx=ctx,
-            )
+            rows: list[AuditRow] = []
 
-        participants = await self.repo.list_participants(
-            course_id=request.course_id,
-            quiz_id=request.quiz_id,
-            engine=request.engine,
-        )
+            for item in ctx.items:
+                if item.interaction_type_slug != "essay":
+                    continue
 
-        submissions = await self.repo.list_submissions(
-            course_id=request.course_id,
-            quiz_id=request.quiz_id,
-            engine=request.engine,
-        )
+                enabled = bool(item.essay_spell_check_enabled)
 
-        submissions_by_user = {s.user_id: s for s in submissions}
-        submissions_by_session = {
-            (s.participant_session_id, s.quiz_session_id): s
-            for s in submissions
-            if s.participant_session_id is not None or s.quiz_session_id is not None
-        }
+                rows.append(
+                    AuditRow(
+                        course_id=ctx.course_id,
+                        quiz_id=ctx.quiz_id,
+                        user_id=None,
+                        item_id=item.item_id,
+                        engine=ctx.engine,
+                        accommodation_type=AccommodationType.SPELL_CHECK,
+                        has_accommodation=enabled,
+                        details={
+                            "spell_check": enabled,
+                            "position": item.position,
+                        },
+                        completed=None,
+                    )
+                )
+
+            return rows
 
         rows: list[AuditRow] = []
 
-        for participant in participants:
+        for participant in ctx.participants:
             submission = self._match_submission(
-                engine=request.engine,
+                engine=ctx.engine,
                 participant=participant,
-                submissions_by_user=submissions_by_user,
-                submissions_by_session=submissions_by_session,
+                submissions_by_user=ctx.submissions_by_user,
+                submissions_by_session=ctx.submissions_by_session,
             )
 
-            ctx = self._build_evaluation_context(
-                engine=request.engine,
+            eval_ctx = self._build_evaluation_context(
+                engine=ctx.engine,
                 participant=participant,
                 submission=submission,
             )
 
             result = self.evaluate_models(
-                accommodation_type=request.accommodation_type,
-                ctx=ctx,
+                accommodation_type=accommodation_type,
+                ctx=eval_ctx,
             )
 
             completed = submission.date == "past" if submission else None
 
             rows.append(
                 AuditRow(
-                    course_id=request.course_id,
-                    quiz_id=request.quiz_id,
+                    course_id=ctx.course_id,
+                    quiz_id=ctx.quiz_id,
                     user_id=participant.user_id,
                     item_id=None,
-                    engine=request.engine,
-                    accommodation_type=request.accommodation_type,
+                    engine=ctx.engine,
+                    accommodation_type=accommodation_type,
                     has_accommodation=result.has_accommodation,
                     details=result.details,
                     completed=completed,
@@ -215,7 +326,10 @@ class AccommodationService:
             )
 
         return rows
-    
+
+    # ----------------------------
+    # Matching
+    # ----------------------------
 
     def _match_submission(
         self,
@@ -226,15 +340,23 @@ class AccommodationService:
         submissions_by_session: dict[tuple[str | None, str | None], Submission],
     ) -> Submission | None:
         if engine == "new":
-            return submissions_by_session.get(
+            submission = submissions_by_session.get(
                 (participant.participant_session_id, participant.quiz_session_id)
             )
+            if submission is not None:
+                return submission
+
+            return submissions_by_user.get(participant.user_id)
 
         if engine == "classic":
             return submissions_by_user.get(participant.user_id)
 
         return None
-    
+
+    # ----------------------------
+    # Accommodation evaluators
+    # ----------------------------
+
     def _evaluate_extra_time_new(self, ctx: EvaluationContext) -> AccommodationResult:
         participant = ctx.participant
         if participant is None:
@@ -268,7 +390,7 @@ class AccommodationService:
     def _evaluate_extra_attempts(self, ctx: EvaluationContext) -> AccommodationResult:
         submission = ctx.submission
         if submission is None:
-            return AccommodationResult(False,{})
+            return AccommodationResult(False, {})
 
         has = (submission.extra_attempts or 0) > 0
         return AccommodationResult(
@@ -277,37 +399,3 @@ class AccommodationService:
                 "extra_attempts": submission.extra_attempts,
             },
         )
-    
-    def _build_spell_check_rows_from_context(
-        self,
-        *,
-        course_id: int,
-        quiz_id: int,
-        user_id: int,
-        engine: str,
-        ctx: EvaluationContext,
-    ) -> list[AuditRow]:
-        rows: list[AuditRow] = []
-        items = ctx.items or []
-
-        for item in items:
-            if item.interaction_type_slug != "essay":
-                continue
-
-            enabled = bool(item.essay_spell_check_enabled)
-
-            rows.append(
-                AuditRow(
-                    course_id=course_id,
-                    quiz_id=quiz_id,
-                    user_id=user_id,
-                    item_id=item.item_id,
-                    engine=engine,
-                    accommodation_type=AccommodationType.SPELL_CHECK,
-                    has_accommodation=enabled,
-                    details={"spell_check": enabled},
-                    completed=None,
-                )
-            )
-
-        return rows

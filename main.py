@@ -22,9 +22,9 @@ async def demo():
             course_id=12976,
             quiz_id=48379,
             engine="classic",
-            # accommodation_type=AccommodationType.EXTRA_ATTEMPT
+            accommodation_type=AccommodationType.EXTRA_ATTEMPT
             # accommodation_type=AccommodationType.EXTRA_TIME
-            accommodation_type=AccommodationType.SPELL_CHECK
+            # accommodation_type=AccommodationType.SPELL_CHECK
         )
     )
 
@@ -34,9 +34,27 @@ async def demo():
     #         quiz_id=189407,
     #         engine="new",
     #         # accommodation_type=AccommodationType.EXTRA_ATTEMPT,
-    #         # accommodation_type=AccommodationType.EXTRA_TIME,
-    #         accommodation_type=AccommodationType.SPELL_CHECK,
+    #         accommodation_type=AccommodationType.EXTRA_TIME,
+    #         # accommodation_type=AccommodationType.SPELL_CHECK,
     #     )
+    # )
+
+    # rows = await svc.audit_quiz(
+    #     course_id=12976,
+    #     quiz_id=189407,
+    #     engine="new",
+    #     # engine="classic",
+    #     accommodation_types=[
+    #         AccommodationType.EXTRA_TIME,
+    #         AccommodationType.SPELL_CHECK,
+    #     ],
+    # )
+
+    # rows = await svc.audit_quiz(
+    #     course_id=12976,
+    #     quiz_id=189407,
+    #     # engine="new",
+    #     engine="classic",
     # )
 
     for row in rows:
