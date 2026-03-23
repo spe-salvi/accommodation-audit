@@ -1,94 +1,39 @@
 import asyncio
-from pathlib import Path
-from audit.repos.json_repo import JsonRepo
+
+from audit.clients.canvas_client import CanvasClient, CanvasConfig
+from audit.config import Settings
+from audit.repos.canvas_repo import CanvasRepo
 from audit.services.accommodations import AccommodationService, AccommodationType
-from audit.models.audit import AuditRequest
+from audit.models.canvas import Submission, Quiz
 
-BASE_DIR = Path(__file__).resolve().parent
-DUMPS_DIR = BASE_DIR / "dumps"
 
-async def demo():
 
-    #new
-    # repo = JsonRepo(  
-    #     participant_path=DUMPS_DIR / "participants.json",
-    #     submission_path=DUMPS_DIR / "new_submissions.json",
-    #     items_path=DUMPS_DIR / "new_items.json",
-    #     quizzes_path=DUMPS_DIR / "new_quizzes.json",
+async def demo() -> None:
+    return
+    # settings = Settings.from_env()
+    # client = CanvasClient(
+    #     CanvasConfig(
+    #         base_url=settings.canvas_base_url,
+    #         token=settings.canvas_token,
     #     )
-    
-    #classic
-    repo = JsonRepo(
-        participant_path=DUMPS_DIR / "participants.json",
-        submission_path=DUMPS_DIR / "classic_submissions.json",
-        items_path=DUMPS_DIR / "new_items.json",
-        quizzes_path=DUMPS_DIR / "classic_quizzes.json"
-        )
-    
-    svc = AccommodationService(repo)
+    # )
 
-    # rows = await svc.audit_accommodation(
-    #     AuditRequest(
-    #         course_id=12976,
+    # try:
+    #     repo = CanvasRepo(client)
+    #     svc = AccommodationService(repo)
+
+    #     rows = await svc.audit_quiz(
+    #         course_id=12977,
     #         quiz_id=48379,
     #         engine="classic",
-    #         accommodation_type=AccommodationType.EXTRA_ATTEMPT
-    #         # accommodation_type=AccommodationType.EXTRA_TIME
-    #         # accommodation_type=AccommodationType.SPELL_CHECK
+    #         accommodation_types=[AccommodationType.EXTRA_TIME],
     #     )
-    # )
+    #     print(f"rows: {len(rows)}")
+    #     for row in rows[:5]:
+    #         print(row)
+    # finally:
+    #     await client.aclose()
 
-    # rows = await svc.audit_accommodation(
-    #     AuditRequest(
-    #         course_id=12976,
-    #         quiz_id=189407,
-    #         engine="new",
-    #         # accommodation_type=AccommodationType.EXTRA_ATTEMPT,
-    #         accommodation_type=AccommodationType.EXTRA_TIME,
-    #         # accommodation_type=AccommodationType.SPELL_CHECK,
-    #     )
-    # )
-
-    # rows = await svc.audit_quiz(
-    #     course_id=12976,
-    #     quiz_id=189407, #new
-        # quiz_id=48379, #classic
-    #     engine="new",
-    #     # engine="classic",
-    #     accommodation_types=[
-    #         AccommodationType.EXTRA_TIME,
-    #         AccommodationType.SPELL_CHECK,
-    #     ],
-    # )
-
-    # rows = await svc.audit_quiz(
-    #     course_id=12976,
-    #     quiz_id=189407, #new
-        # quiz_id=48379, #classic
-    #     # engine="new",
-    #     engine="classic",
-    # )
-
-
-    # rows = await svc.audit_course(
-    #     course_id=12976,
-    #     # engine="new",
-    #     engine="classic",
-    #     accommodation_types=[
-    #         AccommodationType.EXTRA_TIME,
-    #         AccommodationType.SPELL_CHECK,
-    #     ],
-    # )
-
-
-    rows = await svc.audit_course(
-        course_id=12976,
-        # engine="new",
-        engine="classic",
-    )
-
-    for row in rows:
-        print(row)
 
 if __name__ == "__main__":
     asyncio.run(demo())

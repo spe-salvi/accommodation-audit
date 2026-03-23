@@ -123,11 +123,13 @@ class AccommodationService:
         quiz_id: int,
         engine: str,
     ) -> QuizAuditContext:
-        participants = await self.repo.list_participants(
-            course_id=course_id,
-            quiz_id=quiz_id,
-            engine=engine,
-        )
+        participants: list[Participant] = []
+        if engine == "new":
+            participants = await self.repo.list_participants(
+                course_id=course_id,
+                quiz_id=quiz_id,
+                engine=engine,
+            )
 
         submissions = await self.repo.list_submissions(
             course_id=course_id,
@@ -251,56 +253,87 @@ class AccommodationService:
             )
         return rows
 
-    def _audit_accommodation_with_quiz_context(
+    def _build_spell_check_rows(self, *, ctx: QuizAuditContext) -> list[AuditRow]:
+        if ctx.engine != "new":
+            return []
+
+        rows: list[AuditRow] = []
+
+        for item in ctx.items:
+            if item.interaction_type_slug != "essay":
+                continue
+
+            enabled = bool(item.essay_spell_check_enabled)
+
+            rows.append(
+                AuditRow(
+                    course_id=ctx.course_id,
+                    quiz_id=ctx.quiz_id,
+                    user_id=None,
+                    item_id=item.item_id,
+                    engine=ctx.engine,
+                    accommodation_type=AccommodationType.SPELL_CHECK,
+                    has_accommodation=enabled,
+                    details={
+                        "spell_check": enabled,
+                        "position": item.position,
+                    },
+                    completed=None,
+                )
+            )
+
+        return rows
+
+    def _build_user_rows(
         self,
         *,
         ctx: QuizAuditContext,
         accommodation_type: AccommodationType,
     ) -> list[AuditRow]:
-        if accommodation_type == AccommodationType.SPELL_CHECK:
-            if ctx.engine != "new":
-                return []
+        rows: list[AuditRow] = []
 
-            rows: list[AuditRow] = []
+        if ctx.engine == "new":
+            for participant in ctx.participants:
+                submission = self._match_submission(
+                    engine=ctx.engine,
+                    participant=participant,
+                    submissions_by_user=ctx.submissions_by_user,
+                    submissions_by_session=ctx.submissions_by_session,
+                )
 
-            for item in ctx.items:
-                if item.interaction_type_slug != "essay":
-                    continue
+                eval_ctx = self._build_evaluation_context(
+                    engine=ctx.engine,
+                    participant=participant,
+                    submission=submission,
+                )
 
-                enabled = bool(item.essay_spell_check_enabled)
+                result = self.evaluate_models(
+                    accommodation_type=accommodation_type,
+                    ctx=eval_ctx,
+                )
+
+                completed = submission.date == "past" if submission else None
 
                 rows.append(
                     AuditRow(
                         course_id=ctx.course_id,
                         quiz_id=ctx.quiz_id,
-                        user_id=None,
-                        item_id=item.item_id,
+                        user_id=participant.user_id,
+                        item_id=None,
                         engine=ctx.engine,
-                        accommodation_type=AccommodationType.SPELL_CHECK,
-                        has_accommodation=enabled,
-                        details={
-                            "spell_check": enabled,
-                            "position": item.position,
-                        },
-                        completed=None,
+                        accommodation_type=accommodation_type,
+                        has_accommodation=result.has_accommodation,
+                        details=result.details,
+                        completed=completed,
                     )
                 )
 
             return rows
 
-        rows: list[AuditRow] = []
-
-        for participant in ctx.participants:
-            submission = self._match_submission(
-                engine=ctx.engine,
-                participant=participant,
-                submissions_by_user=ctx.submissions_by_user,
-                submissions_by_session=ctx.submissions_by_session,
-            )
-
+        for submission in ctx.submissions:
             eval_ctx = self._build_evaluation_context(
                 engine=ctx.engine,
-                participant=participant,
+                participant=None,
                 submission=submission,
             )
 
@@ -309,23 +342,35 @@ class AccommodationService:
                 ctx=eval_ctx,
             )
 
-            completed = submission.date == "past" if submission else None
-
             rows.append(
                 AuditRow(
                     course_id=ctx.course_id,
                     quiz_id=ctx.quiz_id,
-                    user_id=participant.user_id,
+                    user_id=submission.user_id,
                     item_id=None,
                     engine=ctx.engine,
                     accommodation_type=accommodation_type,
                     has_accommodation=result.has_accommodation,
                     details=result.details,
-                    completed=completed,
+                    completed=submission.date == "past",
                 )
             )
 
         return rows
+
+    def _audit_accommodation_with_quiz_context(
+        self,
+        *,
+        ctx: QuizAuditContext,
+        accommodation_type: AccommodationType,
+    ) -> list[AuditRow]:
+        if accommodation_type == AccommodationType.SPELL_CHECK:
+            return self._build_spell_check_rows(ctx=ctx)
+
+        return self._build_user_rows(
+            ctx=ctx,
+            accommodation_type=accommodation_type,
+        )
     
 
     async def audit_course(
@@ -345,11 +390,36 @@ class AccommodationService:
         for quiz in quizzes:
             quiz_rows = await self.audit_quiz(
                 course_id=course_id,
-                quiz_id=quiz.id,
+                quiz_id=quiz.quiz_id,
                 engine=engine,
                 accommodation_types=accommodation_types,
             )
             rows.extend(quiz_rows)
+
+        return rows
+
+
+    async def audit_term(
+        self,
+        *,
+        term_id: int,
+        engine: str,
+        accommodation_types: Iterable[AccommodationType] | None = None,
+    ) -> list[AuditRow]:
+        courses = await self.repo.list_courses(
+            term_id=term_id,
+            engine=engine,
+        )
+
+        rows: list[AuditRow] = []
+
+        for course in courses:
+            course_rows = await self.audit_course(
+                course_id=course.course_id,
+                engine=engine,
+                accommodation_types=accommodation_types,
+            )
+            rows.extend(course_rows)
 
         return rows
 

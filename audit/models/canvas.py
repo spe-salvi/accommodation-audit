@@ -1,22 +1,62 @@
+import re
 from dataclasses import dataclass
 from typing import Any, Dict, Iterable, List, Optional
 from urllib.parse import urlparse, parse_qs
-from audit.models.parsing import parse_int, parse_str, validate_expected_id, parse_quiz_id, parse_submission_id, validate_engine_value, validate_payload_for_engine
+from audit.models.parsing import (
+    parse_int,
+    parse_str,
+    parse_quiz_id_from_submission,
+    parse_submission_id,
+    validate_engine_value,
+    validate_payload_for_engine,
+)
+
+# print("USING CANVAS MODEL FROM:", __file__)
+
+_COURSE_ID_PATTERN = re.compile(r"/courses/(\d+)")
+_QUIZ_ID_PATTERN = re.compile(r"/quizzes/(\d+)")
+_ASSIGNMENT_ID_PATTERN = re.compile(r"/assignments/(\d+)")
+
+
+def _parse_course_id_from_urls(*values: Any) -> int | None:
+    for value in values:
+        text = parse_str(value, default="")
+        if not text:
+            continue
+        match = _COURSE_ID_PATTERN.search(text)
+        if match:
+            return int(match.group(1))
+    return None
+
+
+def _parse_quiz_id_from_urls(*values: Any) -> int | None:
+    for value in values:
+        text = parse_str(value, default="")
+        if not text:
+            continue
+        match = _QUIZ_ID_PATTERN.search(text)
+        if match:
+            return int(match.group(1))
+        match = _ASSIGNMENT_ID_PATTERN.search(text)
+        if match:
+            return int(match.group(1))
+    return None
+
 
 @dataclass(slots=True)
 class Term:
-    id: int
-    name: str
+    term_id: int
+    name: Optional[str]
     sis_term_id: Optional[str]
 
     @property
     def key(self) -> int:
-        return self.id
+        return self.term_id
 
     @classmethod
     def from_api(cls, data: Dict[str, Any]) -> "Term":
         return cls(
-            id=int(data.get("id") or None),
+            term_id=int(data.get("id") or None),
             name=str(data.get("name") or None),
             sis_term_id=str(data.get("sis_term_id") or None),
         )
@@ -28,66 +68,126 @@ class Term:
             payload = payload["enrollment_terms"]
 
         return [cls.from_api(item) for item in payload]
-    
-@dataclass
+
+@dataclass(slots=True, frozen=True)    
 class Course:
-    id: int
+    course_id: int
     name: str
     course_code: Optional[str]
     sis_course_id: Optional[str]
+    enrollment_term_id: Optional[int]
 
     @property
     def key(self) -> int:
-        return self.id
-    
+        return self.course_id
+
     @classmethod
-    def from_api(cls, data: dict, course_id: int | None = None) -> "Course | None":
-        raw_course_id = parse_int(data.get("id"))
-        if validate_expected_id(course_id, raw_course_id) is None:
+    def from_api(cls, data: dict) -> "Course | None":
+        course_id = parse_int(data.get("id"))
+        if course_id is None:
             return None
 
         return cls(
-            id=course_id,
+            course_id=course_id,
             name=parse_str(data.get("name")),
             course_code=parse_str(data.get("course_code"), default="") or None,
             sis_course_id=parse_str(data.get("sis_course_id"), default="") or None,
-        )
-
-    @classmethod
-    def list_from_api(cls, payload: Iterable[Dict[str, Any]]) -> List["Course"]:
-        return [cls.from_api(item) for item in payload]
-    
-
-@dataclass(frozen=True)
-class Quiz:
-    course_id: int
-    id: int
-    engine: str
-    title: str
-
-    @property
-    def key(self) -> tuple[int, int]:
-        return (self.course_id, self.id)
-
-    @classmethod
-    def from_api(cls, course_id: int, engine: str, data: Dict[str, Any]) -> "Quiz":
-        return cls(
-            course_id=int(course_id),
-            id=int(data.get("id") or None),
-            engine=engine,
-            title=str(data.get("title") or ""),
+            enrollment_term_id=parse_int(data.get("enrollment_term_id")),
         )
 
     @classmethod
     def list_from_api(
         cls,
-        course_id: int,
+        payload: Iterable[Dict[str, Any]],
+        term_id: int | None = None,
+    ) -> List["Course"]:
+        courses: list[Course] = []
+        for item in payload:
+            course = cls.from_api(item)
+            if course is None:
+                continue
+            if term_id is not None and course.enrollment_term_id != term_id:
+                continue
+            courses.append(course)
+        return courses
+    
+
+@dataclass(slots=True, frozen=True)
+class Quiz:
+    course_id: int
+    quiz_id: int
+    engine: str
+    title: str
+
+    @property
+    def key(self) -> tuple[int, int]:
+        return (self.course_id, self.quiz_id)
+
+    @classmethod
+    def from_api(
+        cls,
+        engine: str,
+        data: Dict[str, Any],
+        course_id_override: int | None = None,
+    ) -> "Quiz | None":
+        engine = validate_engine_value(engine)
+
+        quiz_id = parse_int(data.get("id"))
+        if quiz_id is None:
+            return None
+
+        course_id = (
+            parse_int(data.get("course_id"))
+            or course_id_override
+            or _parse_course_id_from_urls(
+                data.get("html_url"),
+                data.get("mobile_url"),
+                data.get("quiz_reports_url"),
+                data.get("quiz_statistics_url"),
+                data.get("message_students_url"),
+                data.get("quiz_submission_versions_html_url"),
+                data.get("speed_grader_url"),
+            )
+        )
+        if course_id is None:
+            return None
+
+        return cls(
+            course_id=course_id,
+            quiz_id=quiz_id,
+            engine=engine,
+            title=parse_str(data.get("title")),
+        )
+
+    @classmethod
+    def list_from_api(
+        cls,
+        *,
         engine: str,
         payload: Iterable[Dict[str, Any]],
+        course_id: int | None = None,
+        course_id_by_quiz: dict[int, int] | None = None,
     ) -> List["Quiz"]:
-        return [cls.from_api(course_id=course_id, engine=engine, data=item) for item in payload]
+        quizzes: list[Quiz] = []
+        for item in payload:
+            raw_quiz_id = parse_int(item.get("id"))
+            course_id_override = None
+            if raw_quiz_id is not None and course_id_by_quiz is not None:
+                course_id_override = course_id_by_quiz.get(raw_quiz_id)
 
-@dataclass
+            quiz = cls.from_api(
+                engine=engine,
+                data=item,
+                course_id_override=course_id_override,
+            )
+            if quiz is None:
+                continue
+            if course_id is not None and quiz.course_id != course_id:
+                continue
+            quizzes.append(quiz)
+        return quizzes
+
+@dataclass(slots=True, frozen=True)
 class User:
     id: int
     sortable_name: str
@@ -110,7 +210,7 @@ class User:
         return [cls.from_api(item) for item in payload]
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(slots=True, frozen=True)
 class Participant:
     course_id: int
     quiz_id: int
@@ -138,10 +238,25 @@ class Participant:
         return (self.participant_session_id, self.quiz_session_id)
     
     @classmethod
-    def from_api(cls, course_id: int, quiz_id: int, engine: str, data: Dict[str, Any]) -> "Participant":
+    def from_api(
+        cls,
+        course_id: int,
+        quiz_id: int,
+        engine: str,
+        data: Dict[str, Any],
+    ) -> "Participant | None":
+        engine = validate_engine_value(engine)
+
+        user_id = parse_int(data.get("user_id"))
+        participant_id = parse_int(data.get("id"))
+        if user_id is None or participant_id is None:
+            return None
+        
         enrollment = data.get("enrollment", {})
         sessions = data.get("participant_sessions", [])
 
+        # Students are expected to have at most one session per quiz.
+        # Extra time is an enrollment-level accommodation, not session-specific.
         first_session = sessions[0] if sessions else {}
 
         return cls(
@@ -162,6 +277,7 @@ class Participant:
             quiz_session_id=str(first_session.get("quiz_api_quiz_session_id") or None),
         )
 
+
     @classmethod
     def list_from_api(
         cls,
@@ -170,9 +286,19 @@ class Participant:
         engine: str,
         payload: Iterable[Dict[str, Any]],
     ) -> List["Participant"]:
-        return [cls.from_api(course_id=course_id, quiz_id=quiz_id, engine=engine, data=item) for item in payload]
+        participants: list[Participant] = []
+        for item in payload:
+            participant = cls.from_api(
+                course_id=course_id,
+                quiz_id=quiz_id,
+                engine=engine,
+                data=item,
+            )
+            if participant is not None:
+                participants.append(participant)
+        return participants
     
-@dataclass(slots=True)
+@dataclass(slots=True, frozen=True)
 class Enrollment:
     user_id: int
     course_id: int
@@ -195,7 +321,7 @@ class Enrollment:
 
 
 
-@dataclass(slots=True)
+@dataclass(slots=True, frozen=True)
 class Submission:
     user_id: int
     course_id: int
@@ -208,6 +334,10 @@ class Submission:
     date: str
     participant_session_id: str | None
     quiz_session_id: str | None
+
+    @property
+    def key(self) -> tuple[int, int, int]:
+        return (self.course_id, self.quiz_id, self.user_id)
 
     @staticmethod
     def _workflow_to_date(workflow: str) -> str:
@@ -234,30 +364,51 @@ class Submission:
     @classmethod
     def from_api(
         cls,
-        course_id: int,
-        quiz_id: int,
+        *,
         engine: str,
         data: dict,
     ) -> "Submission | None":
         engine = validate_engine_value(engine)
-        validate_payload_for_engine(data, engine)
 
-        actual_quiz_id = validate_expected_id(
-            parse_quiz_id(data, engine),
-            expected=quiz_id,
+        if engine == "new":
+            validate_payload_for_engine(data, engine)
+        else:
+            try:
+                validate_payload_for_engine(data, engine)
+            except (TypeError, ValueError, KeyError):
+                pass
+
+        actual_quiz_id = (
+            parse_quiz_id_from_submission(data, engine)
+            or _parse_quiz_id_from_urls(
+                data.get("url"),
+                data.get("preview_url"),
+                data.get("html_url"),
+                data.get("result_url"),
+            )
         )
-        user_id = parse_int(data.get("user_id"))
         submission_id = parse_submission_id(data, engine)
+        participant_session_id, quiz_session_id = cls._parse_new_quiz_session_ids(
+            parse_str(data.get("external_tool_url"), default="") or None
+        )
 
-        if actual_quiz_id is None or user_id is None:
+        user_id = parse_int(data.get("user_id"))
+
+        course_id = (
+            parse_int(data.get("course_id"))
+            or _parse_course_id_from_urls(
+                data.get("url"),
+                data.get("preview_url"),
+                data.get("html_url"),
+                data.get("result_url"),
+            )
+        )
+
+        if actual_quiz_id is None or user_id is None or course_id is None:
             return None
 
         workflow_state = parse_str(data.get("workflow_state"))
         date = cls._workflow_to_date(workflow_state)
-
-        participant_session_id, quiz_session_id = cls._parse_new_quiz_session_ids(
-            parse_str(data.get("external_tool_url"), default="") or None
-        )
 
         return cls(
             user_id=user_id,
@@ -276,10 +427,11 @@ class Submission:
     @classmethod
     def list_from_api(
         cls,
-        course_id: int,
-        quiz_id: int,
+        *,
         engine: str,
         payload: dict | list[dict],
+        course_id: int | None = None,
+        quiz_id: int | None = None,
     ) -> list["Submission"]:
         engine = validate_engine_value(engine)
 
@@ -291,19 +443,19 @@ class Submission:
 
         submissions: list[Submission] = []
         for item in payload:
-            submission = cls.from_api(
-                course_id=course_id,
-                quiz_id=quiz_id,
-                engine=engine,
-                data=item,
-            )
-            if submission is not None:
-                submissions.append(submission)
+            submission = cls.from_api(engine=engine, data=item)
+            if submission is None:
+                continue
+            if course_id is not None and submission.course_id != course_id:
+                continue
+            if quiz_id is not None and submission.quiz_id != quiz_id:
+                continue
+            submissions.append(submission)
 
         return submissions
     
 
-@dataclass(slots=True)
+@dataclass(slots=True, frozen=True)
 class NewQuizItem:
     course_id: int
     quiz_id: int

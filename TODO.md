@@ -14,13 +14,13 @@
     - [x] Update Business Logic Layer
   - [x] Additional Accommodation Type (Extra Attempt, Classic Quiz)
     - [x] Update Submission model
-    - [ ] Fix bug: Not validating input against data returned
-  - [ ] Additional Accommodation Type (Extra Time, Classic Quiz)
-  - [ ] Additional Accommodation Type (Spell Check, New Quiz)
-  - [ ] Additional Accommodation Type (Split Test)
-  - [ ] All Quizzes in Course
-  - [ ] All Courses in Term
-  - [ ] All Terms
+    - [x] Fix bug: Not validating input against data returned
+  - [x] Additional Accommodation Type (Extra Time, Classic Quiz)
+  - [x] Additional Accommodation Type (Spell Check, New Quiz)
+  - [x] Additional Accommodation Type (Split Test)
+  - [x] All Quizzes in Course
+  - [x] All Courses in Term
+  - [x] All Terms
 
 ## Phase 2 — From Canvas API
 
@@ -68,7 +68,7 @@
 
 - Phase 5.2 - Persistent Cache (TTL)
 
-- [ ] 
+- [ ]
 
 - Phase 5.3 - Metric Logging
 

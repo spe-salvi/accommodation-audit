@@ -1,7 +1,7 @@
 from __future__ import annotations
 from enum import Enum
 from typing import Protocol, Optional
-from audit.models.canvas import Quiz, Participant, Submission, NewQuizItem
+from audit.models.canvas import Course, Quiz, Participant, Submission, NewQuizItem
 
 
 class AccommodationType(str, Enum):
@@ -44,4 +44,14 @@ class AccommodationRepo(Protocol):
     async def get_quiz(
         self, *, course_id: int, quiz_id: int, engine: str
     ) -> Optional[Quiz]:
+        ...
+
+    async def list_courses(
+        self, *, term_id: int, engine: str
+    ) -> list[Course]:
+        ...
+    
+    async def get_course(
+        self, *, term_id: int, course_id: int, engine: str
+    ) -> Optional[Course]:
         ...
