@@ -1,4 +1,5 @@
 import asyncio
+from xmlrpc import client
 
 from audit.clients.canvas_client import CanvasClient, CanvasConfig
 from audit.config import Settings
@@ -9,14 +10,21 @@ from audit.models.canvas import Submission, Quiz
 
 
 async def demo() -> None:
-    return
-    # settings = Settings.from_env()
-    # client = CanvasClient(
-    #     CanvasConfig(
-    #         base_url=settings.canvas_base_url,
-    #         token=settings.canvas_token,
-    #     )
-    # )
+    # return
+    settings = Settings.from_env()
+    client = CanvasClient(
+        CanvasConfig(
+            base_url=settings.canvas_base_url,
+            token=settings.canvas_token,
+        )
+    )
+    
+    repo = CanvasRepo(client)
+    response =await repo.list_submissions(
+        course_id=12977,
+        quiz_id=48379,
+        engine="classic")
+    print(response)
 
     # try:
     #     repo = CanvasRepo(client)
