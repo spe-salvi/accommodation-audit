@@ -1,23 +1,24 @@
 import os
 from dotenv import load_dotenv
+
 load_dotenv()
 
-BASE_URL = "https://franciscan.instructure.com"
-BETA_URL = "https://franciscan.beta.instructure.com"
-ACCESS_TOKEN = os.getenv('ACCESS_TOKEN')
-ACCESS_TOKEN_EL = os.getenv('ACCESS_TOKEN_EL')
 
- 
-API_URL = f'{BASE_URL}/api/v1'
-BETA_API_URL = f'{BETA_URL}/api/v1'
-FUS_ACCOUNT = '/accounts/1'
-HEADERS = {
-    "Authorization": "Bearer " + ACCESS_TOKEN_EL,
-    "User Agent" : "acc audit app"
-    }
+def _require(key: str) -> str:
+    value = os.environ.get(key)
+    if not value:
+        raise RuntimeError(f"Missing required environment variable: {key!r}")
+    return value
 
-MAX_WORKERS = 30
 
-TERM = 117 # Spring 2026
+class Settings:
+    @property
+    def canvas_base_url(self) -> str:
+        return _require("CANVAS_BASE_URL")
 
-CACHE_TTL = 60 * 60 * 24 # 1 day in seconds
+    @property
+    def canvas_token(self) -> str:
+        return _require("CANVAS_TOKEN")
+
+
+settings = Settings()

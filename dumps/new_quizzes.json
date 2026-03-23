@@ -1,0 +1,305 @@
+[
+  {
+    "id": "189412",
+    "title": "Complete Course Honor Code Agreement",
+    "instructions": "",
+    "assignment_group_id": "46362",
+    "points_possible": 0,
+    "due_at": "2026-01-20T13:00:00Z",
+    "lock_at": null,
+    "unlock_at": null,
+    "published": true,
+    "grading_type": "points",
+    "quiz_settings": {
+      "calculator_type": "none",
+      "filter_ip_address": false,
+      "filters": {
+        "ips": []
+      },
+      "one_at_a_time_type": "none",
+      "allow_backtracking": true,
+      "shuffle_answers": false,
+      "shuffle_questions": false,
+      "require_student_access_code": false,
+      "student_access_code": null,
+      "has_time_limit": false,
+      "session_time_limit_in_seconds": 0,
+      "multiple_attempts": {
+        "score_to_keep": "highest",
+        "build_on_last_attempt": false
+      },
+      "result_view_settings": {
+        "display_items": true,
+        "display_item_feedback": true,
+        "display_item_response": true,
+        "display_points_awarded": true,
+        "result_view_restricted": true,
+        "display_points_possible": true,
+        "display_item_correct_answer": true,
+        "display_item_response_qualifier": "always",
+        "display_item_response_correctness": true,
+        "display_item_response_correctness_qualifier": "always"
+      }
+    }
+  },
+  {
+    "id": "189436",
+    "title": "Take Decalogue Test",
+    "instructions": "<p><span>T/F questions on select readings. 500-word essay questions. Open book/open notes. No other resources. Do not begin the test until you are ready to complete it entirely - you cannot exit and reenter the test. You have 120 minutes to complete the test.</span></p>",
+    "assignment_group_id": "46364",
+    "points_possible": 20,
+    "due_at": "2026-05-06T03:59:00Z",
+    "lock_at": null,
+    "unlock_at": null,
+    "published": true,
+    "grading_type": "points",
+    "quiz_settings": {
+      "calculator_type": "none",
+      "filter_ip_address": false,
+      "filters": {
+        "ips": []
+      },
+      "one_at_a_time_type": "none",
+      "allow_backtracking": true,
+      "shuffle_answers": false,
+      "shuffle_questions": false,
+      "require_student_access_code": false,
+      "student_access_code": null,
+      "has_time_limit": true,
+      "session_time_limit_in_seconds": 7200,
+      "multiple_attempts": {
+        "score_to_keep": "highest",
+        "build_on_last_attempt": false
+      },
+      "result_view_settings": {
+        "display_items": true,
+        "display_item_feedback": true,
+        "display_item_response": true,
+        "display_points_awarded": true,
+        "result_view_restricted": true,
+        "display_points_possible": true,
+        "display_item_correct_answer": true,
+        "display_item_response_qualifier": "always",
+        "display_item_response_correctness": true,
+        "display_item_response_correctness_qualifier": "always"
+      }
+    }
+  },
+  {
+    "id": "189437",
+    "title": "Take Moral Theology and Gospel Morality Test",
+    "instructions": "<div class=\"vtbegenerated\">T/F questions on select readings. 500-word essay questions. Open book/open notes. No other resources. Do not begin the test until you are ready to complete it entirely - you cannot exit and reenter the test. You have 90 minutes to complete the test.</div>",
+    "assignment_group_id": "46364",
+    "points_possible": 20,
+    "due_at": "2026-02-10T13:00:00Z",
+    "lock_at": null,
+    "unlock_at": null,
+    "published": true,
+    "grading_type": "points",
+    "quiz_settings": {
+      "calculator_type": "none",
+      "filter_ip_address": false,
+      "filters": {
+        "ips": []
+      },
+      "one_at_a_time_type": "none",
+      "allow_backtracking": true,
+      "shuffle_answers": false,
+      "shuffle_questions": false,
+      "require_student_access_code": false,
+      "student_access_code": null,
+      "has_time_limit": true,
+      "session_time_limit_in_seconds": 5400,
+      "multiple_attempts": {
+        "score_to_keep": "highest",
+        "build_on_last_attempt": false
+      },
+      "result_view_settings": {
+        "display_items": true,
+        "display_item_feedback": true,
+        "display_item_response": true,
+        "display_points_awarded": true,
+        "result_view_restricted": true,
+        "display_points_possible": true,
+        "display_item_correct_answer": true,
+        "display_item_response_qualifier": "always",
+        "display_item_response_correctness": true,
+        "display_item_response_correctness_qualifier": "always"
+      }
+    }
+  },
+  {
+    "id": "189438",
+    "title": "Take Test on Freedom, Law, and Conscience",
+    "instructions": "<p>T/F questions on select readings. 500-word essay questions. Open book/open notes. No other resources. Do not begin the test until you are ready to complete it entirely - you cannot exit and reenter the test. You have 90 minutes to complete the exam.</p>",
+    "assignment_group_id": "46364",
+    "points_possible": 20,
+    "due_at": "2026-03-03T13:00:00Z",
+    "lock_at": null,
+    "unlock_at": null,
+    "published": true,
+    "grading_type": "points",
+    "quiz_settings": {
+      "calculator_type": "none",
+      "filter_ip_address": false,
+      "filters": {
+        "ips": []
+      },
+      "one_at_a_time_type": "none",
+      "allow_backtracking": true,
+      "shuffle_answers": false,
+      "shuffle_questions": false,
+      "require_student_access_code": false,
+      "student_access_code": null,
+      "has_time_limit": true,
+      "session_time_limit_in_seconds": 5400,
+      "multiple_attempts": {
+        "score_to_keep": "highest",
+        "build_on_last_attempt": false
+      },
+      "result_view_settings": {
+        "display_items": true,
+        "display_item_feedback": true,
+        "display_item_response": true,
+        "display_points_awarded": true,
+        "result_view_restricted": true,
+        "display_points_possible": true,
+        "display_item_correct_answer": true,
+        "display_item_response_qualifier": "always",
+        "display_item_response_correctness": true,
+        "display_item_response_correctness_qualifier": "always"
+      }
+    }
+  },
+  {
+    "id": "189439",
+    "title": "Take Test on Human Act and Moral Absolutes",
+    "instructions": "<div class=\"vtbegenerated\">T/F questions on select readings. 500-word essay questions. Open book/open notes. No other resources. Do not begin the test until you are ready to complete it entirely - you cannot exit and reenter the test. You have 90 minutes to complete the test.</div>",
+    "assignment_group_id": "46364",
+    "points_possible": 20,
+    "due_at": "2026-04-14T12:00:00Z",
+    "lock_at": null,
+    "unlock_at": null,
+    "published": true,
+    "grading_type": "points",
+    "quiz_settings": {
+      "calculator_type": "none",
+      "filter_ip_address": false,
+      "filters": {
+        "ips": []
+      },
+      "one_at_a_time_type": "none",
+      "allow_backtracking": true,
+      "shuffle_answers": false,
+      "shuffle_questions": false,
+      "require_student_access_code": false,
+      "student_access_code": null,
+      "has_time_limit": true,
+      "session_time_limit_in_seconds": 5400,
+      "multiple_attempts": {
+        "score_to_keep": "highest",
+        "build_on_last_attempt": false
+      },
+      "result_view_settings": {
+        "display_items": true,
+        "display_item_feedback": true,
+        "display_item_response": true,
+        "display_points_awarded": true,
+        "result_view_restricted": true,
+        "display_points_possible": true,
+        "display_item_correct_answer": true,
+        "display_item_response_qualifier": "always",
+        "display_item_response_correctness": true,
+        "display_item_response_correctness_qualifier": "always"
+      }
+    }
+  },
+  {
+    "id": "189440",
+    "title": "Take Test on Virtue and Sin",
+    "instructions": "<p>T/F questions on select readings. 500-word essay questions. Open book/open notes. No other resources. Do not begin the test until you are ready to complete it entirely - you cannot exit and reenter the test. You have 90 minutes to complete the test.</p>",
+    "assignment_group_id": "46364",
+    "points_possible": 20,
+    "due_at": "2026-03-24T12:00:00Z",
+    "lock_at": null,
+    "unlock_at": null,
+    "published": true,
+    "grading_type": "points",
+    "quiz_settings": {
+      "calculator_type": "none",
+      "filter_ip_address": false,
+      "filters": {
+        "ips": []
+      },
+      "one_at_a_time_type": "none",
+      "allow_backtracking": true,
+      "shuffle_answers": false,
+      "shuffle_questions": false,
+      "require_student_access_code": false,
+      "student_access_code": null,
+      "has_time_limit": true,
+      "session_time_limit_in_seconds": 5400,
+      "multiple_attempts": {
+        "score_to_keep": "highest",
+        "build_on_last_attempt": false
+      },
+      "result_view_settings": {
+        "display_items": true,
+        "display_item_feedback": true,
+        "display_item_response": true,
+        "display_points_awarded": true,
+        "result_view_restricted": true,
+        "display_points_possible": true,
+        "display_item_correct_answer": true,
+        "display_item_response_qualifier": "always",
+        "display_item_response_correctness": true,
+        "display_item_response_correctness_qualifier": "always"
+      }
+    }
+  },
+  {
+    "id": "189441",
+    "title": "Verify you have opted in or out of Verbum",
+    "instructions": "",
+    "assignment_group_id": "46363",
+    "points_possible": 1,
+    "due_at": "2026-01-21T21:30:00Z",
+    "lock_at": null,
+    "unlock_at": null,
+    "published": true,
+    "grading_type": "points",
+    "quiz_settings": {
+      "calculator_type": "none",
+      "filter_ip_address": false,
+      "filters": {
+        "ips": []
+      },
+      "one_at_a_time_type": "none",
+      "allow_backtracking": true,
+      "shuffle_answers": false,
+      "shuffle_questions": false,
+      "require_student_access_code": false,
+      "student_access_code": null,
+      "has_time_limit": false,
+      "session_time_limit_in_seconds": 0,
+      "multiple_attempts": {
+        "attempt_limit": false,
+        "score_to_keep": "highest",
+        "build_on_last_attempt": false,
+        "multiple_attempts_enabled": true
+      },
+      "result_view_settings": {
+        "display_items": true,
+        "display_item_feedback": true,
+        "display_item_response": true,
+        "display_points_awarded": true,
+        "result_view_restricted": true,
+        "display_points_possible": true,
+        "display_item_correct_answer": true,
+        "display_item_response_qualifier": "always",
+        "display_item_response_correctness": true,
+        "display_item_response_correctness_qualifier": "always"
+      }
+    }
+  }
+]
