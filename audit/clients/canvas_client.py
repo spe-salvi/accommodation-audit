@@ -21,6 +21,7 @@ class CanvasClient:
             timeout=config.timeout_seconds,
             headers={
                 "Authorization": f"Bearer {config.token}",
+                "User-Agent": "audit app",
                 "Accept": "application/json",
             },
         )

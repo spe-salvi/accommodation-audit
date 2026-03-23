@@ -12,7 +12,7 @@ class CanvasClient:
     async def get_paginated(self, path, params=None):
         results = []
         url = f"{self.base_url}{path}"
-        headers = {"Authorization": f"Bearer {self.token}"}
+        headers = {"Authorization": f"Bearer {self.token}", "User-Agent": "audit app"}
 
         while url:
             response = await self.session.get(url, headers=headers, params=params)
@@ -88,8 +88,8 @@ Builders
 def build_submissions_list(data: dict, *, course_id: int, quiz_id: int, **_):
     return Submission.from_api(course_id, quiz_id, data)
 
-def build_items_list(data: dict, *, course_id: int, quiz_id: int, **_):
-    return NewQuizItem.from_api(course_id, quiz_id, data)
+# def build_items_list(data: dict, *, course_id: int, quiz_id: int, **_):
+#     return NewQuizItem.from_api(course_id, quiz_id, data)
 
 
 ENDPOINTS = {
@@ -135,12 +135,12 @@ ENDPOINTS = {
     #     "params": {},
     #     "builder": build_classic_quiz,
     # },
-    # 'c_quiz_submissions': {
-    #     "method": "GET",
-    #     "path": f"{config.API_URL}/v1/courses/{course_id}/quizzes/{quiz_id}/submissions",
-    #     "params": {},
-    #     "builder": build_submissions_list,
-    # },
+    'c_quiz_submissions': {
+        "method": "GET",
+        "path": f"{config.API_URL}/v1/courses/{course_id}/quizzes/{quiz_id}/submissions",
+        "params": {},
+        "builder": build_submissions_list,
+    },
     # 'n_quizzes' : {
     #     "method": "GET",
     #     "path": f"{config.API_URL}/quiz/v1/courses/{course_id}/quizzes",
