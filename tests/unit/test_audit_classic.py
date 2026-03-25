@@ -3,7 +3,6 @@ import pytest
 from audit.services.accommodations import AccommodationType
 
 
-@pytest.mark.asyncio
 async def test_audit_course_classic_all_types_returns_rows(classic_svc):
     rows = await classic_svc.audit_course(
         course_id=12977,
@@ -13,7 +12,6 @@ async def test_audit_course_classic_all_types_returns_rows(classic_svc):
     assert len(rows) > 0
 
 
-@pytest.mark.asyncio
 async def test_audit_term_classic_all_types_returns_rows(classic_svc):
     rows = await classic_svc.audit_term(
         term_id=117,
@@ -23,7 +21,6 @@ async def test_audit_term_classic_all_types_returns_rows(classic_svc):
     assert len(rows) > 0
 
 
-@pytest.mark.asyncio
 async def test_audit_quiz_classic_returns_rows(classic_svc):
     rows = await classic_svc.audit_quiz(
         course_id=12977,
@@ -37,7 +34,6 @@ async def test_audit_quiz_classic_returns_rows(classic_svc):
     assert all(row.engine == "classic" for row in rows)
 
 
-@pytest.mark.asyncio
 async def test_classic_extra_time_has_positive_case(classic_svc):
     rows = await classic_svc.audit_quiz(
         course_id=12977,
