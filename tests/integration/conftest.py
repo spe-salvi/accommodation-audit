@@ -11,7 +11,7 @@ async def canvas_repo():
     async with httpx.AsyncClient() as http:
         client = CanvasClient(
             base_url=settings.canvas_base_url,
-            token=settings.canvas_token,
+            headers={"Authorization": f"Bearer {settings.canvas_token}"},
             http=http,
         )
-        yield CanvasRepo(client, account_id=settings.canvas_account_id)
+        yield CanvasRepo(client, account_id=int(settings.canvas_account_id))

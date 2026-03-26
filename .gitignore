@@ -1,9 +1,11 @@
 audit/__pycache__/
 audit/services/__pycache__/
+audit/runner/__pycache__/
 audit/repos/__pycache__/
 audit/models/__pycache__/
 audit/clients/__pycache__/
+audit/cache/__pycache__/
+audit/tests/__pycache__/
+audit/tests/integration/__pycache__/
+audit/tests/unit/__pycache__/
 .env
-dumps/enrollments.json
-dumps/participant.json
-dumps/users.json

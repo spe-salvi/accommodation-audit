@@ -1,18 +1,28 @@
-from dataclasses import dataclass
 import os
 from dotenv import load_dotenv
 
 load_dotenv()
 
 
-@dataclass(slots=True, frozen=True)
-class Settings:
-    canvas_base_url: str
-    canvas_token: str
+def _require(key: str) -> str:
+    value = os.environ.get(key)
+    if not value:
+        raise RuntimeError(f"Missing required environment variable: {key!r}")
+    return value
 
-    @classmethod
-    def from_env(cls) -> "Settings":
-        return cls(
-            canvas_base_url=os.environ["CANVAS_BASE_URL"],
-            canvas_token=os.environ["ACCESS_TOKEN_EL"],
-        )
+
+class Settings:
+    @property
+    def canvas_base_url(self) -> str:
+        return _require("CANVAS_BASE_URL")
+
+    @property
+    def canvas_token(self) -> str:
+        return _require("CANVAS_TOKEN")
+
+    @property
+    def canvas_account_id(self) -> str:
+        return _require("CANVAS_ACCOUNT_ID")
+
+
+settings = Settings()
