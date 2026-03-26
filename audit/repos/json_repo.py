@@ -21,6 +21,14 @@ Engine inference:
     ``quiz_id`` vs. ``assignment_id``). See ``_infer_quiz_engine``
     and ``_infer_submission_engine`` for the heuristics.
 """
+<<<<<<< HEAD
+=======
+
+import json
+from pathlib import Path
+from typing import Optional
+from audit.models.canvas import Course, Quiz, Participant, Submission, NewQuizItem
+>>>>>>> fb079c2a69e95c5965c6116b2ebe628e50ca8d04
 
 import json
 from collections import defaultdict
@@ -31,6 +39,12 @@ from typing import Optional
 from audit.models.canvas import Course, Quiz, Participant, Submission, NewQuizItem
 
 
+"""
+In-memory index of all loaded data.
+
+Each dict is keyed by a composite tuple for O(1) lookups.
+Built once during ``JsonRepo.__init__`` and never mutated afterward.
+"""
 @dataclass(slots=True)
 class JsonCatalog:
     """
@@ -50,6 +64,22 @@ class JsonCatalog:
     submissions_by_user: dict[tuple[int, int, int, str], Submission] = field(default_factory=dict)
 
 
+"""
+File-based implementation of AccommodationRepo.
+
+Reads Canvas API response JSON from local files, parses them into
+domain models, and indexes everything into a ``JsonCatalog`` for
+fast lookups. Methods are async to conform to the protocol, even
+though the underlying reads are synchronous — this ensures the
+service layer can use ``await`` uniformly regardless of the repo.
+
+Args:
+    participant_path: Path to a JSON file containing participant data.
+    submission_path: Path to a JSON file containing submission data.
+    items_path: Path to a JSON file containing quiz item data.
+    quizzes_path: Path to a JSON file containing quiz data.
+    courses_path: Path to a JSON file containing course data.
+"""
 class JsonRepo:
     """
     File-based implementation of AccommodationRepo.
@@ -91,12 +121,23 @@ class JsonRepo:
     # Catalog construction
     # ------------------------------------------------------------------
 
+<<<<<<< HEAD
+=======
+    """Load and parse a JSON file, returning an empty list if path is None."""
+>>>>>>> fb079c2a69e95c5965c6116b2ebe628e50ca8d04
     def _load_json(self, path: Path | None) -> object:
         """Load and parse a JSON file, returning an empty list if path is None."""
         if path is None:
             return []
         return json.loads(path.read_text(encoding="utf-8"))
 
+    """
+    Parse all JSON files and build the in-memory index.
+
+    Processing order matters: submissions are loaded before quizzes
+    so that ``course_id_by_quiz`` (derived from submission data) is
+    available to fill in missing course_id on quiz payloads.
+    """
     def _build_catalog(self) -> JsonCatalog:
         """
         Parse all JSON files and build the in-memory index.
@@ -167,6 +208,16 @@ class JsonRepo:
     # Engine inference heuristics
     # ------------------------------------------------------------------
 
+<<<<<<< HEAD
+=======
+    """
+    Guess the quiz engine from a quiz payload's structure.
+
+    Classic quizzes have fields like ``quiz_reports_url`` or
+    ``html_url``. If neither is present, assume new engine.
+    Defaults to "classic" for empty payloads.
+    """
+>>>>>>> fb079c2a69e95c5965c6116b2ebe628e50ca8d04
     def _infer_quiz_engine(self, payload: list[dict]) -> str:
         """
         Guess the quiz engine from a quiz payload's structure.
@@ -182,6 +233,13 @@ class JsonRepo:
             return "classic"
         return "new"
 
+    """
+    Guess the engine from a submission payload's structure.
+
+    Checks for ``quiz_id`` (classic) vs. ``assignment_id`` (new),
+    handling both the wrapped dict form and bare list form.
+    Defaults to "classic" when the structure is ambiguous.
+    """
     def _infer_submission_engine(self, payload: object) -> str:
         """
         Guess the engine from a submission payload's structure.
@@ -213,6 +271,10 @@ class JsonRepo:
     # AccommodationRepo protocol methods
     # ------------------------------------------------------------------
 
+<<<<<<< HEAD
+=======
+    """Load participants from JSON, caching after first read."""
+>>>>>>> fb079c2a69e95c5965c6116b2ebe628e50ca8d04
     async def list_participants(self, *, course_id: int, quiz_id: int, engine: str) -> list[Participant]:
         """Load participants from JSON, caching after first read."""
         key = (course_id, quiz_id, engine)
@@ -235,6 +297,7 @@ class JsonRepo:
         self._participants_cache[key] = participants
         return list(participants)
 
+    """Find a single participant by user_id via list scan."""
     async def get_participant(self, *, course_id: int, quiz_id: int, user_id: int, engine: str) -> Optional[Participant]:
         """Find a single participant by user_id via list scan."""
         participants = await self.list_participants(course_id=course_id, quiz_id=quiz_id, engine=engine)
@@ -243,18 +306,21 @@ class JsonRepo:
                 return p
         return None
 
+    """Look up pre-indexed submissions by composite key."""
     async def list_submissions(self, *, course_id: int, quiz_id: int, engine: str) -> list[Submission]:
         """Look up pre-indexed submissions by composite key."""
         return list(
             self._catalog.submissions_by_quiz_engine.get((course_id, quiz_id, engine), [])
         )
 
+    """Look up a pre-indexed submission by composite key."""
     async def get_submission(self, *, course_id: int, quiz_id: int, engine: str, user_id: int) -> Optional[Submission]:
         """Look up a pre-indexed submission by composite key."""
         return self._catalog.submissions_by_user.get(
             (course_id, quiz_id, user_id, engine)
         )
 
+    """Load quiz items from JSON, caching after first read."""
     async def list_items(self, *, course_id: int, quiz_id: int, engine: str) -> list[NewQuizItem]:
         """Load quiz items from JSON, caching after first read."""
         key = (course_id, quiz_id, engine)
@@ -277,18 +343,22 @@ class JsonRepo:
         self._items_cache[key] = items
         return list(items)
 
+    """Look up pre-indexed quizzes by (course_id, engine)."""
     async def list_quizzes(self, *, course_id: int, engine: str) -> list[Quiz]:
         """Look up pre-indexed quizzes by (course_id, engine)."""
         return list(self._catalog.quizzes_by_course_engine.get((course_id, engine), []))
 
+    """Look up a pre-indexed quiz by composite key."""
     async def get_quiz(self, *, course_id: int, quiz_id: int, engine: str) -> Optional[Quiz]:
         """Look up a pre-indexed quiz by composite key."""
         return self._catalog.quizzes_by_key.get((course_id, quiz_id, engine))
 
+    """Look up pre-indexed courses by term_id."""
     async def list_courses(self, *, term_id: int, engine: str) -> list[Course]:
         """Look up pre-indexed courses by term_id."""
         return list(self._catalog.courses_by_term.get(term_id, []))
 
+    """Look up a pre-indexed course, validating term membership."""
     async def get_course(self, *, term_id: int, course_id: int, engine: str) -> Optional[Course]:
         """Look up a pre-indexed course, validating term membership."""
         course = self._catalog.courses_by_id.get(course_id)

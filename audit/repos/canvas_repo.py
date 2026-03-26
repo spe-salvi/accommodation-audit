@@ -12,9 +12,15 @@ signatures mirror the protocol exactly, so the service layer can
 swap between ``CanvasRepo`` and ``JsonRepo`` without changes.
 
 API path conventions:
+<<<<<<< HEAD
   - Classic quizzes: ``/api/v1/courses/{id}/quizzes/...``
   - New quizzes:     ``/api/quiz/v1/courses/{id}/quizzes/...``
     (submissions use ``/api/v1/.../assignments/{id}/submissions``)
+=======
+  - Classic quizzes: ``/api/v1/courses/{course_id}/quizzes/...``
+  - New quizzes:     ``/api/quiz/v1/courses/{course_id}/quizzes/...``
+    (submissions use ``/api/v1/.../assignments/{assignment_id}/submissions``)
+>>>>>>> fb079c2a69e95c5965c6116b2ebe628e50ca8d04
 """
 
 from __future__ import annotations
@@ -26,6 +32,7 @@ from audit.models.canvas import Course, Quiz, Participant, Submission, NewQuizIt
 from audit.repos.base import AccommodationRepo
 
 
+<<<<<<< HEAD
 class CanvasRepo(AccommodationRepo):
     """
     Live Canvas API implementation of AccommodationRepo.
@@ -34,10 +41,20 @@ class CanvasRepo(AccommodationRepo):
     mapping between Canvas API paths/payloads and domain models.
     """
 
+=======
+"""
+Live Canvas API implementation of AccommodationRepo.
+
+Delegates HTTP concerns to ``CanvasClient`` and focuses on
+mapping between Canvas API paths/payloads and domain models.
+"""
+class CanvasRepo(AccommodationRepo):
+>>>>>>> fb079c2a69e95c5965c6116b2ebe628e50ca8d04
     def __init__(self, client: CanvasClient, *, account_id: int) -> None:
         self.client = client
         self._account_id = account_id
 
+<<<<<<< HEAD
     async def list_participants(
         self, *, course_id: int, quiz_id: int, engine: str
     ) -> list[Participant]:
@@ -47,6 +64,17 @@ class CanvasRepo(AccommodationRepo):
         Classic quizzes have no participant concept — returns an empty
         list for non-new engines.
         """
+=======
+    """
+    Fetch all participants for a new-engine quiz.
+
+    Classic quizzes have no participant concept — returns an empty
+    list for non-new engines.
+    """
+    async def list_participants(
+        self, *, course_id: int, quiz_id: int, engine: str
+    ) -> list[Participant]:
+>>>>>>> fb079c2a69e95c5965c6116b2ebe628e50ca8d04
         if engine != "new":
             return []
 
@@ -60,10 +88,17 @@ class CanvasRepo(AccommodationRepo):
             payload=payload,
         )
 
+<<<<<<< HEAD
     async def get_participant(
         self, *, course_id: int, quiz_id: int, user_id: int, engine: str
     ) -> Optional[Participant]:
         """Fetch a single participant by scanning the full list."""
+=======
+    """Fetch a single participant by scanning the full list."""
+    async def get_participant(
+        self, *, course_id: int, quiz_id: int, user_id: int, engine: str
+    ) -> Optional[Participant]:
+>>>>>>> fb079c2a69e95c5965c6116b2ebe628e50ca8d04
         participants = await self.list_participants(
             course_id=course_id, quiz_id=quiz_id, engine=engine
         )
@@ -72,6 +107,7 @@ class CanvasRepo(AccommodationRepo):
                 return participant
         return None
 
+<<<<<<< HEAD
     async def list_submissions(
         self, *, course_id: int, quiz_id: int, engine: str
     ) -> list[Submission]:
@@ -82,6 +118,18 @@ class CanvasRepo(AccommodationRepo):
           - New engine: ``/api/v1/courses/{id}/assignments/{id}/submissions``
           - Classic:    ``/api/v1/courses/{id}/quizzes/{id}/submissions``
         """
+=======
+    """
+    Fetch all submissions for a quiz.
+
+    Routes to the correct API path based on engine type:
+        - New engine: ``/api/v1/courses/{id}/assignments/{id}/submissions``
+        - Classic:    ``/api/v1/courses/{id}/quizzes/{id}/submissions``
+    """
+    async def list_submissions(
+        self, *, course_id: int, quiz_id: int, engine: str
+    ) -> list[Submission]:
+>>>>>>> fb079c2a69e95c5965c6116b2ebe628e50ca8d04
         if engine == "new":
             path = f"/api/v1/courses/{course_id}/assignments/{quiz_id}/submissions"
         else:
@@ -95,10 +143,17 @@ class CanvasRepo(AccommodationRepo):
             payload=payload,
         )
 
+<<<<<<< HEAD
     async def get_submission(
         self, *, course_id: int, quiz_id: int, user_id: int, engine: str
     ) -> Optional[Submission]:
         """Fetch a single submission by scanning the full list."""
+=======
+    """Fetch a single submission by scanning the full list."""
+    async def get_submission(
+        self, *, course_id: int, quiz_id: int, user_id: int, engine: str
+    ) -> Optional[Submission]:
+>>>>>>> fb079c2a69e95c5965c6116b2ebe628e50ca8d04
         submissions = await self.list_submissions(
             course_id=course_id, quiz_id=quiz_id, engine=engine
         )
@@ -107,6 +162,7 @@ class CanvasRepo(AccommodationRepo):
                 return submission
         return None
 
+<<<<<<< HEAD
     async def list_items(
         self, *, course_id: int, quiz_id: int, engine: str
     ) -> list[NewQuizItem]:
@@ -116,6 +172,17 @@ class CanvasRepo(AccommodationRepo):
         Classic quizzes do not expose per-item configuration via the
         API — returns an empty list for non-new engines.
         """
+=======
+    """
+    Fetch all items for a new-engine quiz.
+
+    Classic quizzes do not expose per-item configuration via the
+    API — returns an empty list for non-new engines.
+    """
+    async def list_items(
+        self, *, course_id: int, quiz_id: int, engine: str
+    ) -> list[NewQuizItem]:
+>>>>>>> fb079c2a69e95c5965c6116b2ebe628e50ca8d04
         if engine != "new":
             return []
 
@@ -129,7 +196,13 @@ class CanvasRepo(AccommodationRepo):
             payload=payload,
         )
 
+    """
+    Fetch all quizzes in a course for the given engine.
+
+    Routes to the correct API namespace based on engine type.
+    """
     async def list_quizzes(self, *, course_id: int, engine: str) -> list[Quiz]:
+<<<<<<< HEAD
         """
         Fetch all quizzes in a course for the given engine.
 
@@ -140,6 +213,13 @@ class CanvasRepo(AccommodationRepo):
         else:
             path = f"/api/v1/courses/{course_id}/quizzes"
 
+=======
+        if engine == "new":
+            path = f"/api/quiz/v1/courses/{course_id}/quizzes"
+        else:
+            path = f"/api/v1/courses/{course_id}/quizzes"
+
+>>>>>>> fb079c2a69e95c5965c6116b2ebe628e50ca8d04
         payload = await self.client.get_paginated_json(path)
         return Quiz.list_from_api(
             engine=engine,
@@ -148,16 +228,24 @@ class CanvasRepo(AccommodationRepo):
             course_id_by_quiz={},  # not needed when course_id is known
         )
 
+<<<<<<< HEAD
     async def get_quiz(
         self, *, course_id: int, quiz_id: int, engine: str
     ) -> Optional[Quiz]:
         """Fetch a single quiz by scanning the full list."""
+=======
+    """Fetch a single quiz by scanning the full list."""
+    async def get_quiz(
+        self, *, course_id: int, quiz_id: int, engine: str
+    ) -> Optional[Quiz]:
+>>>>>>> fb079c2a69e95c5965c6116b2ebe628e50ca8d04
         quizzes = await self.list_quizzes(course_id=course_id, engine=engine)
         for quiz in quizzes:
             if quiz.quiz_id == quiz_id:
                 return quiz
         return None
 
+    """Fetch all courses for a term under this account."""
     async def list_courses(self, *, term_id: int, engine: str) -> list[Course]:
         """Fetch all courses for a term under this account."""
         payload = await self.client.get_paginated_json(
@@ -166,6 +254,7 @@ class CanvasRepo(AccommodationRepo):
         )
         return Course.list_from_api(payload, term_id=term_id)
 
+<<<<<<< HEAD
     async def get_course(
         self, *, term_id: int, course_id: int, engine: str
     ) -> Optional[Course]:
@@ -175,6 +264,17 @@ class CanvasRepo(AccommodationRepo):
         Returns None if the course doesn't exist or belongs to a
         different term.
         """
+=======
+    """
+    Fetch a single course and validate it belongs to the given term.
+
+    Returns None if the course doesn't exist or belongs to a
+    different term.
+    """
+    async def get_course(
+        self, *, term_id: int, course_id: int, engine: str
+    ) -> Optional[Course]:
+>>>>>>> fb079c2a69e95c5965c6116b2ebe628e50ca8d04
         payload = await self.client.get_json(f"/api/v1/courses/{course_id}")
         course = Course.from_api(payload)
         if course is None:

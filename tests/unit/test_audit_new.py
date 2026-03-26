@@ -3,7 +3,6 @@ import pytest
 from audit.services.accommodations import AccommodationType
 
 
-@pytest.mark.asyncio
 async def test_audit_course_new_specific_types_returns_rows(new_svc):
     rows = await new_svc.audit_course(
         course_id=12977,
@@ -21,7 +20,6 @@ async def test_audit_course_new_specific_types_returns_rows(new_svc):
     }
 
 
-@pytest.mark.asyncio
 async def test_audit_course_new_all_types_returns_rows(new_svc):
     rows = await new_svc.audit_course(
         course_id=12977,
@@ -31,7 +29,6 @@ async def test_audit_course_new_all_types_returns_rows(new_svc):
     assert len(rows) > 0
 
 
-@pytest.mark.asyncio
 async def test_audit_term_new_all_types_returns_rows(new_svc):
     rows = await new_svc.audit_term(
         term_id=117,
@@ -41,7 +38,6 @@ async def test_audit_term_new_all_types_returns_rows(new_svc):
     assert len(rows) > 0
 
 
-@pytest.mark.asyncio
 async def test_audit_quiz_new_returns_rows(new_svc):
     rows = await new_svc.audit_quiz(
         course_id=12977,

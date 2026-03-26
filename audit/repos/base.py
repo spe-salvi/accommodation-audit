@@ -18,6 +18,13 @@ from typing import Protocol, Optional
 from audit.models.canvas import Course, Quiz, Participant, Submission, NewQuizItem
 
 
+"""
+The types of quiz accommodations this system can audit.
+
+Each value corresponds to a distinct evaluation strategy in the
+service layer. Extending the system with a new accommodation type
+means adding a value here and registering an evaluator.
+"""
 class AccommodationType(str, Enum):
     """
     The types of quiz accommodations this system can audit.
@@ -32,6 +39,18 @@ class AccommodationType(str, Enum):
     SPELL_CHECK = "spell_check"
 
 
+"""
+Abstract data access interface for accommodation auditing.
+
+Implementations must provide async methods for retrieving
+participants, submissions, quiz items, quizzes, and courses.
+The service layer calls these methods without knowing whether
+the data comes from a file, an API, or a cache.
+
+Current implementations:
+    - ``CanvasRepo``: Live Canvas API calls
+    - ``JsonRepo``: Local JSON files (development/testing)
+"""
 class AccommodationRepo(Protocol):
     """
     Abstract data access interface for accommodation auditing.
@@ -98,4 +117,8 @@ class AccommodationRepo(Protocol):
         self, *, term_id: int, course_id: int, engine: str
     ) -> Optional[Course]:
         """Get a single course, validating it belongs to the given term."""
+<<<<<<< HEAD
         ...
+=======
+        ...
+>>>>>>> fb079c2a69e95c5965c6116b2ebe628e50ca8d04

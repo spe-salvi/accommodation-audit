@@ -17,7 +17,10 @@ Usage:
         )
         courses = await client.get_paginated_json("/api/v1/courses")
 """
+<<<<<<< HEAD
 
+=======
+>>>>>>> fb079c2a69e95c5965c6116b2ebe628e50ca8d04
 from __future__ import annotations
 
 import httpx
@@ -42,15 +45,22 @@ class CanvasClient:
         pass a mock transport without hitting the network.
     """
 
+<<<<<<< HEAD
     def __init__(self, *, base_url: str, token: str, http: httpx.AsyncClient) -> None:
         self._base_url = base_url.rstrip("/")
         self._headers = {"Authorization": f"Bearer {token}"}
+=======
+    def __init__(self, *, base_url: str, headers: dict[str, str], http: httpx.AsyncClient) -> None:
+        self._base_url = base_url.rstrip("/")
+        self._headers = headers
+>>>>>>> fb079c2a69e95c5965c6116b2ebe628e50ca8d04
         self._http = http
 
     # ------------------------------------------------------------------
     # Public interface
     # ------------------------------------------------------------------
 
+<<<<<<< HEAD
     async def get_json(self, path: str, *, params: dict | None = None) -> dict:
         """
         Fetch a single JSON object from a Canvas endpoint.
@@ -91,6 +101,47 @@ class CanvasClient:
         Raises:
             httpx.HTTPStatusError: On any non-2xx response during traversal.
         """
+=======
+    """
+    Fetch a single JSON object from a Canvas endpoint.
+
+    Use this for endpoints that return a single resource (e.g., a
+    specific course or quiz). 
+
+    Raises:
+        httpx.HTTPStatusError: On any non-2xx response.
+    """
+    async def get_json(self, path: str, *, params: dict | None = None) -> dict:
+        response = await self._get(path, params=params)
+        return response.json()
+
+    """
+    Fetch all pages for a paginated Canvas endpoint.
+
+    Canvas uses RFC 5988 Link headers for pagination. This method
+    follows the ``rel="next"`` link until no more pages remain,
+    collecting all results into a single flat list.
+
+    Canvas responses come in two shapes:
+        - A bare JSON array (most endpoints)
+        - A wrapped dict with one list-valued key,
+        e.g. ``{"quiz_submissions": [...]}`` (classic quiz submissions)
+
+    Both shapes are unwrapped transparently — the caller always
+    receives a flat ``list[dict]``.
+
+    Note:
+        Query params are only sent with the first request. Subsequent
+        page URLs are fully-formed by Canvas and must not have params
+        appended again.
+
+    Raises:
+        httpx.HTTPStatusError: On any non-2xx response during traversal.
+    """
+    async def get_paginated_json(
+        self, path: str, *, params: dict | None = None
+    ) -> list:
+>>>>>>> fb079c2a69e95c5965c6116b2ebe628e50ca8d04
         results: list = []
         url: str | None = f"{self._base_url}{path}"
 
@@ -112,13 +163,19 @@ class CanvasClient:
     # Private helpers
     # ------------------------------------------------------------------
 
+<<<<<<< HEAD
     async def _get(self, path: str, *, params: dict | None = None) -> httpx.Response:
         """Issue a single GET request and raise on non-2xx."""
+=======
+    """Issue a single GET request and raise on non-2xx."""
+    async def _get(self, path: str, *, params: dict | None = None) -> httpx.Response:
+>>>>>>> fb079c2a69e95c5965c6116b2ebe628e50ca8d04
         url = f"{self._base_url}{path}"
         response = await self._http.get(url, headers=self._headers, params=params)
         response.raise_for_status()
         return response
 
+<<<<<<< HEAD
     @staticmethod
     def _unwrap(data: list | dict) -> list:
         """
@@ -129,6 +186,18 @@ class CanvasClient:
         a bare list. This method handles both so upstream code never
         needs to check.
         """
+=======
+    """
+    Normalize a Canvas response into a plain list.
+
+    Canvas wraps some endpoints in a dict with a single list-valued
+    key (e.g. ``{"quiz_submissions": [...]}``) while others return
+    a bare list. This method handles both so upstream code never
+    needs to check.
+    """
+    @staticmethod
+    def _unwrap(data: list | dict) -> list:
+>>>>>>> fb079c2a69e95c5965c6116b2ebe628e50ca8d04
         if isinstance(data, list):
             return data
         if isinstance(data, dict):

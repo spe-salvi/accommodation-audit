@@ -27,6 +27,14 @@ from audit.models.canvas import Participant, Submission, NewQuizItem
 from audit.repos.base import AccommodationRepo, AccommodationType
 
 
+
+"""
+The outcome of evaluating a single accommodation for a single user.
+
+``has_accommodation`` is the boolean verdict; ``details`` carries
+the raw values that led to the decision (e.g., extra_time_in_seconds)
+for inclusion in audit output.
+"""
 @dataclass(frozen=True)
 class AccommodationResult:
     """
@@ -41,6 +49,15 @@ class AccommodationResult:
     details: dict
 
 
+"""
+The minimal data slice needed to evaluate one accommodation for one user.
+
+Which fields are populated depends on the accommodation type and engine:
+    - Extra time (new): needs ``participant``
+    - Extra time (classic): needs ``submission``
+    - Extra attempts: needs ``submission``
+    - Spell check: needs ``items`` (evaluated per-item, not per-user)
+"""
 @dataclass(frozen=True)
 class EvaluationContext:
     """
@@ -59,6 +76,17 @@ class EvaluationContext:
     items: list[NewQuizItem] | None = None
 
 
+"""
+Pre-loaded data for auditing all users/items on a single quiz.
+
+Eagerly loading all participants, submissions, and items upfront
+(rather than fetching per-user) minimizes API calls at the cost of
+memory. This is the right tradeoff when auditing quizzes with
+hundreds of students.
+
+The ``submissions_by_user`` and ``submissions_by_session`` dicts
+enable O(1) matching during evaluation.
+"""
 @dataclass(frozen=True)
 class QuizAuditContext:
     """
@@ -88,6 +116,23 @@ class QuizAuditContext:
 Evaluator = Callable[[EvaluationContext], AccommodationResult]
 
 
+"""
+Orchestrates accommodation evaluation and audit report generation.
+
+The service maintains a registry of evaluator functions keyed by
+(engine, accommodation_type). Adding support for a new accommodation
+type requires:
+    1. Adding the type to ``AccommodationType`` enum
+    2. Writing an evaluator method
+    3. Registering it in ``self._evaluators``
+
+Public API (from narrowest to broadest scope):
+    - ``evaluate()`` — Single user, single accommodation
+    - ``audit_accommodation()`` — All users for one accommodation on one quiz
+    - ``audit_quiz()`` — All accommodations on one quiz
+    - ``audit_course()`` — All quizzes in a course
+    - ``audit_term()`` — All courses in a term
+"""
 class AccommodationService:
     """
     Orchestrates accommodation evaluation and audit report generation.
@@ -321,7 +366,11 @@ class AccommodationService:
         quiz_id: int,
         engine: str,
         accommodation_types: Iterable[AccommodationType] | None = None,
+<<<<<<< HEAD
     ) -> list[AuditRow]:
+=======
+    ) -> list[AuditRow]:        
+>>>>>>> fb079c2a69e95c5965c6116b2ebe628e50ca8d04
         """
         Audit all (or selected) accommodation types on a single quiz.
 
@@ -413,6 +462,7 @@ class AccommodationService:
         """
         rows: list[AuditRow] = []
 
+        # New engine: iterate over participants and match submissions
         if ctx.engine == "new":
             for participant in ctx.participants:
                 submission = self._match_submission(

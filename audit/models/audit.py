@@ -16,6 +16,20 @@ from typing import Optional, Dict
 from audit.repos.base import AccommodationType
 
 
+"""
+A single audit result.
+
+Each row represents one of two shapes:
+    - **Per-user:** Indicates whether a specific student has a specific
+    accommodation (extra time, extra attempts) on a given quiz.
+    ``user_id`` is set; ``item_id`` is None.
+    - **Per-item:** Indicates whether a specific quiz question has a
+    configuration-level accommodation (spell-check). ``item_id`` is
+    set; ``user_id`` is None.
+
+The ``details`` dict carries accommodation-specific data (e.g.,
+``{"extra_time_in_seconds": 600}``) for downstream reporting.
+"""
 @dataclass(frozen=True, slots=True)
 class AuditRow:
     """
@@ -44,6 +58,7 @@ class AuditRow:
     completed: Optional[bool] = None
 
 
+<<<<<<< HEAD
 @dataclass(frozen=True, slots=True)
 class AuditRequest:
     """
@@ -54,9 +69,24 @@ class AuditRequest:
     entire term, while one with ``quiz_id`` audits a single quiz.
     """
 
+=======
+"""
+Parameters for a scoped audit operation.
+
+All fields are optional to support auditing at different
+granularities — a request with only ``term_id`` audits the
+entire term, while one with ``quiz_id`` audits a single quiz.
+"""
+@dataclass(frozen=True, slots=True)
+class AuditRequest:
+>>>>>>> fb079c2a69e95c5965c6116b2ebe628e50ca8d04
     term_id: int | None = None
     course_id: int | None = None
     quiz_id: int | None = None
     user_id: int | None = None
+<<<<<<< HEAD
+=======
+    # item_id: int | None = None
+>>>>>>> fb079c2a69e95c5965c6116b2ebe628e50ca8d04
     engine: str | None = None
     accommodation_type: AccommodationType | None = None
