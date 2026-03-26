@@ -1,3 +1,22 @@
+"""
+Domain models for Canvas LMS entities.
+
+Each model corresponds to a Canvas API resource and provides two
+factory methods for construction from API payloads:
+
+  - ``from_api(data)`` — parse a single JSON dict into a model instance,
+    returning None if required fields are missing or invalid.
+  - ``list_from_api(payload, ...)`` — parse a list of JSON dicts,
+    silently skipping any that fail validation.
+
+Design principles:
+  - Models are frozen dataclasses (immutable after construction).
+  - All parsing tolerates Canvas's inconsistencies (missing fields,
+    mixed types, absent course_id that must be extracted from URLs).
+  - No model performs I/O; all data arrives via the factory methods.
+  - Each model exposes a ``key`` property for use as a dict/set key.
+"""
+
 import re
 from dataclasses import dataclass
 from typing import Any, Dict, Iterable, List, Optional
@@ -11,7 +30,13 @@ from audit.models.parsing import (
     validate_payload_for_engine,
 )
 
-# print("USING CANVAS MODEL FROM:", __file__)
+# ---------------------------------------------------------------------------
+# URL-based ID extraction
+#
+# Some Canvas API responses omit course_id or quiz_id from the JSON body
+# but embed them in URL fields (html_url, preview_url, etc.). These
+# patterns extract IDs from those URLs as a fallback.
+# ---------------------------------------------------------------------------
 
 _COURSE_ID_PATTERN = re.compile(r"/courses/(\d+)")
 _QUIZ_ID_PATTERN = re.compile(r"/quizzes/(\d+)")
@@ -19,6 +44,7 @@ _ASSIGNMENT_ID_PATTERN = re.compile(r"/assignments/(\d+)")
 
 
 def _parse_course_id_from_urls(*values: Any) -> int | None:
+    """Try to extract a course ID from one or more URL-like strings."""
     for value in values:
         text = parse_str(value, default="")
         if not text:
@@ -30,6 +56,12 @@ def _parse_course_id_from_urls(*values: Any) -> int | None:
 
 
 def _parse_quiz_id_from_urls(*values: Any) -> int | None:
+    """
+    Try to extract a quiz or assignment ID from URL-like strings.
+
+    Checks for both ``/quizzes/<id>`` (classic) and
+    ``/assignments/<id>`` (new engine) patterns.
+    """
     for value in values:
         text = parse_str(value, default="")
         if not text:
@@ -43,8 +75,14 @@ def _parse_quiz_id_from_urls(*values: Any) -> int | None:
     return None
 
 
+# ---------------------------------------------------------------------------
+# Term
+# ---------------------------------------------------------------------------
+
 @dataclass(slots=True)
 class Term:
+    """An enrollment term (semester/quarter) in Canvas."""
+
     term_id: int
     name: Optional[str]
     sis_term_id: Optional[str]
@@ -63,14 +101,20 @@ class Term:
 
     @classmethod
     def list_from_api(cls, payload: Dict[str, Any] | Iterable[Dict[str, Any]]) -> List["Term"]:
-        # Handle wrapped response
+        """Parse terms, handling the ``{"enrollment_terms": [...]}`` wrapper."""
         if isinstance(payload, dict) and "enrollment_terms" in payload:
             payload = payload["enrollment_terms"]
-
         return [cls.from_api(item) for item in payload]
 
-@dataclass(slots=True, frozen=True)    
+
+# ---------------------------------------------------------------------------
+# Course
+# ---------------------------------------------------------------------------
+
+@dataclass(slots=True, frozen=True)
 class Course:
+    """A Canvas course, scoped to an enrollment term."""
+
     course_id: int
     name: str
     course_code: Optional[str]
@@ -83,6 +127,7 @@ class Course:
 
     @classmethod
     def from_api(cls, data: dict) -> "Course | None":
+        """Parse a single course payload. Returns None if ``id`` is missing."""
         course_id = parse_int(data.get("id"))
         if course_id is None:
             return None
@@ -101,6 +146,12 @@ class Course:
         payload: Iterable[Dict[str, Any]],
         term_id: int | None = None,
     ) -> List["Course"]:
+        """
+        Parse a list of course payloads.
+
+        If *term_id* is provided, courses belonging to a different term
+        are silently filtered out.
+        """
         courses: list[Course] = []
         for item in payload:
             course = cls.from_api(item)
@@ -110,10 +161,23 @@ class Course:
                 continue
             courses.append(course)
         return courses
-    
+
+
+# ---------------------------------------------------------------------------
+# Quiz
+# ---------------------------------------------------------------------------
 
 @dataclass(slots=True, frozen=True)
 class Quiz:
+    """
+    A quiz (classic or new engine) within a Canvas course.
+
+    The ``engine`` field distinguishes classic quizzes (the original
+    Canvas quiz tool) from new quizzes (the LTI-based replacement).
+    The two engines have different API surfaces and different
+    accommodation semantics.
+    """
+
     course_id: int
     quiz_id: int
     engine: str
@@ -130,6 +194,16 @@ class Quiz:
         data: Dict[str, Any],
         course_id_override: int | None = None,
     ) -> "Quiz | None":
+        """
+        Parse a single quiz payload.
+
+        ``course_id`` resolution order:
+          1. Explicit ``course_id`` field in the payload
+          2. *course_id_override* argument (from caller context)
+          3. Extracted from embedded URL fields (html_url, etc.)
+
+        Returns None if quiz_id or course_id cannot be determined.
+        """
         engine = validate_engine_value(engine)
 
         quiz_id = parse_int(data.get("id"))
@@ -168,12 +242,19 @@ class Quiz:
         course_id: int | None = None,
         course_id_by_quiz: dict[int, int] | None = None,
     ) -> List["Quiz"]:
+        """
+        Parse a list of quiz payloads.
+
+        *course_id_by_quiz* allows the caller to supply a pre-built
+        mapping from quiz_id to course_id (useful when course_id was
+        learned from submission data but is absent from the quiz payload).
+        """
         quizzes: list[Quiz] = []
         for item in payload:
             raw_quiz_id = parse_int(item.get("id"))
-            course_id_override = None
+            course_id_override = course_id
             if raw_quiz_id is not None and course_id_by_quiz is not None:
-                course_id_override = course_id_by_quiz.get(raw_quiz_id)
+                course_id_override = course_id_by_quiz.get(raw_quiz_id) or course_id_override
 
             quiz = cls.from_api(
                 engine=engine,
@@ -187,8 +268,15 @@ class Quiz:
             quizzes.append(quiz)
         return quizzes
 
+
+# ---------------------------------------------------------------------------
+# User
+# ---------------------------------------------------------------------------
+
 @dataclass(slots=True, frozen=True)
 class User:
+    """A Canvas user (student, instructor, etc.)."""
+
     id: int
     sortable_name: str
     sis_user_id: Optional[str]
@@ -196,7 +284,7 @@ class User:
     @property
     def key(self) -> int:
         return self.id
-    
+
     @classmethod
     def from_api(cls, data: dict) -> "User":
         return cls(
@@ -204,14 +292,32 @@ class User:
             sortable_name=str(data.get("sortable_name") or None),
             sis_user_id=str(data.get("sis_user_id") or None),
         )
-    
+
     @classmethod
     def list_from_api(cls, payload: Iterable[Dict[str, Any]]) -> List["User"]:
         return [cls.from_api(item) for item in payload]
 
 
+# ---------------------------------------------------------------------------
+# Participant (New Quiz engine only)
+# ---------------------------------------------------------------------------
+
 @dataclass(slots=True, frozen=True)
 class Participant:
+    """
+    A quiz participant from the New Quizzes API.
+
+    Participants carry enrollment-level accommodation data (extra time,
+    timer multiplier) and session linkage. Classic quizzes do not have
+    a participant concept — their accommodation data lives on the
+    submission instead.
+
+    Session handling:
+        Each participant may have zero or more ``participant_sessions``.
+        Students are expected to have at most one session per quiz.
+        The first session's IDs are captured for submission matching.
+    """
+
     course_id: int
     quiz_id: int
     user_id: int
@@ -235,8 +341,9 @@ class Participant:
 
     @property
     def session_key(self) -> tuple[Optional[str], Optional[str]]:
+        """Composite key for matching participants to submissions by session."""
         return (self.participant_session_id, self.quiz_session_id)
-    
+
     @classmethod
     def from_api(
         cls,
@@ -245,13 +352,20 @@ class Participant:
         engine: str,
         data: Dict[str, Any],
     ) -> "Participant | None":
+        """
+        Parse a single participant payload.
+
+        Accommodation data is nested under the ``enrollment`` key.
+        Session data comes from the ``participant_sessions`` array.
+        Returns None if user_id or participant_id is missing.
+        """
         engine = validate_engine_value(engine)
 
         user_id = parse_int(data.get("user_id"))
         participant_id = parse_int(data.get("id"))
         if user_id is None or participant_id is None:
             return None
-        
+
         enrollment = data.get("enrollment", {})
         sessions = data.get("participant_sessions", [])
 
@@ -266,17 +380,13 @@ class Participant:
             engine=engine,
             participant_id=int(data.get("id") or None),
             extra_attempts=int(data.get("extra_attempts") or 0),
-
             timer_multiplier_enabled=bool(enrollment.get("timer_multiplier_enabled") or False),
             timer_multiplier_value=float(enrollment.get("timer_multiplier_value") or 0),
-
             extra_time_enabled=bool(enrollment.get("extra_time_enabled") or False),
             extra_time_in_seconds=int(enrollment.get("extra_time_in_seconds") or 0),
-
             participant_session_id=str(first_session.get("id") or None),
             quiz_session_id=str(first_session.get("quiz_api_quiz_session_id") or None),
         )
-
 
     @classmethod
     def list_from_api(
@@ -286,6 +396,7 @@ class Participant:
         engine: str,
         payload: Iterable[Dict[str, Any]],
     ) -> List["Participant"]:
+        """Parse a list of participant payloads, skipping invalid entries."""
         participants: list[Participant] = []
         for item in payload:
             participant = cls.from_api(
@@ -297,9 +408,16 @@ class Participant:
             if participant is not None:
                 participants.append(participant)
         return participants
-    
+
+
+# ---------------------------------------------------------------------------
+# Enrollment
+# ---------------------------------------------------------------------------
+
 @dataclass(slots=True, frozen=True)
 class Enrollment:
+    """A user's enrollment in a specific course."""
+
     user_id: int
     course_id: int
 
@@ -309,20 +427,34 @@ class Enrollment:
 
     @classmethod
     def from_api(cls, data: Dict[str, Any]) -> Optional["Enrollment"]:
-
         return cls(
             user_id=int(data.get("user_id") or None),
             course_id=int(data.get("course_id") or None),
         )
-    
+
     @classmethod
     def list_from_api(cls, payload: Iterable[Dict[str, Any]]) -> List["Enrollment"]:
         return [cls.from_api(item) for item in payload]
 
 
+# ---------------------------------------------------------------------------
+# Submission
+# ---------------------------------------------------------------------------
 
 @dataclass(slots=True, frozen=True)
 class Submission:
+    """
+    A student's quiz submission (classic or new engine).
+
+    Submissions carry per-student accommodation overrides (extra_time,
+    extra_attempts) for classic quizzes, and session linkage for new
+    quizzes.
+
+    The ``date`` field is derived from ``workflow_state`` and simplified
+    to "past" (completed/graded) or "future" (not yet submitted).
+    This supports filtering audit results by completion status.
+    """
+
     user_id: int
     course_id: int
     quiz_id: int
@@ -341,6 +473,7 @@ class Submission:
 
     @staticmethod
     def _workflow_to_date(workflow: str) -> str:
+        """Map Canvas workflow_state to a simplified temporal label."""
         if workflow in ("complete", "graded"):
             return "past"
         if workflow in ("settings_only", "unsubmitted"):
@@ -351,6 +484,13 @@ class Submission:
     def _parse_new_quiz_session_ids(
         external_tool_url: str | None,
     ) -> tuple[str | None, str | None]:
+        """
+        Extract session IDs from a new-quiz submission's external_tool_url.
+
+        New quiz submissions embed participant_session_id and
+        quiz_session_id as query parameters on the external_tool_url.
+        These IDs are used to match submissions to participants.
+        """
         if not external_tool_url:
             return None, None
 
@@ -368,6 +508,17 @@ class Submission:
         engine: str,
         data: dict,
     ) -> "Submission | None":
+        """
+        Parse a single submission payload.
+
+        For new-engine submissions, validation is strict (raises on
+        missing assignment_id). For classic submissions, validation
+        is lenient — some classic payloads lack quiz_id in the body
+        and we fall back to URL extraction.
+
+        Returns None if user_id, quiz_id, or course_id cannot be
+        determined from any source.
+        """
         engine = validate_engine_value(engine)
 
         if engine == "new":
@@ -433,6 +584,13 @@ class Submission:
         course_id: int | None = None,
         quiz_id: int | None = None,
     ) -> list["Submission"]:
+        """
+        Parse a list of submission payloads.
+
+        Handles the ``{"quiz_submissions": [...]}`` wrapper that
+        classic quiz submission endpoints return. Optional *course_id*
+        and *quiz_id* filters let the caller scope results.
+        """
         engine = validate_engine_value(engine)
 
         if isinstance(payload, dict) and "quiz_submissions" in payload:
@@ -453,10 +611,24 @@ class Submission:
             submissions.append(submission)
 
         return submissions
-    
+
+
+# ---------------------------------------------------------------------------
+# NewQuizItem
+# ---------------------------------------------------------------------------
 
 @dataclass(slots=True, frozen=True)
 class NewQuizItem:
+    """
+    A single question/item within a New Quiz.
+
+    Used primarily for spell-check auditing: each essay-type item
+    may have spell-check independently enabled or disabled.
+
+    Only meaningful for new-engine quizzes; classic quizzes do not
+    expose per-item configuration via the API.
+    """
+
     course_id: int
     quiz_id: int
     engine: str
@@ -467,25 +639,34 @@ class NewQuizItem:
 
     @property
     def key(self) -> tuple[int, int, int]:
-        # (course, quiz, item) uniquely identifies an item in your world
         return (self.course_id, self.quiz_id, self.item_id)
 
     @classmethod
     def from_api(cls, course_id: int, quiz_id: int, engine: str, data: Dict[str, Any]) -> "NewQuizItem":
+        """
+        Parse a single quiz item payload.
+
+        Spell-check status is only extracted for essay-type items.
+        For all other item types, ``essay_spell_check_enabled`` is None.
+
+        Note:
+            The spell-check flag is read from ``entry.interaction_data``
+            rather than ``entry.properties`` because the two can
+            disagree — interaction_data is the authoritative source.
+        """
         entry = data.get("entry") or {}
         slug = str(entry.get("interaction_type_slug") or "")
 
         spell_check: Optional[bool] = None
         if slug == "essay":
             interaction_data = entry.get("interaction_data") or {}
-            # use interaction_data; properties.spell_check can disagree
             spell_check = bool(interaction_data.get("spell_check") or False)
 
         return cls(
             course_id=int(course_id),
             quiz_id=int(quiz_id),
             engine=engine,
-            item_id=int(data.get("id") or 0),          # item id comes as a string
+            item_id=int(data.get("id") or 0),
             position=int(data.get("position") or 0),
             interaction_type_slug=slug,
             essay_spell_check_enabled=spell_check,
@@ -499,4 +680,5 @@ class NewQuizItem:
         engine: str,
         payload: Iterable[Dict[str, Any]],
     ) -> List["NewQuizItem"]:
+        """Parse a list of quiz item payloads."""
         return [cls.from_api(course_id=course_id, quiz_id=quiz_id, engine=engine, data=item) for item in payload]

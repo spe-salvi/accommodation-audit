@@ -1,39 +1,30 @@
+"""
+CLI entry point for the accommodation audit system.
+
+Creates the full dependency chain (HTTP client → Canvas client →
+repository → service) and runs a sample audit. In production this
+would accept command-line arguments for term_id, course_id, engine,
+and accommodation types.
+"""
+
 import asyncio
-
-from audit.clients.canvas_client import CanvasClient, CanvasConfig
+import httpx
 from audit.config import Settings
+from audit.clients.canvas_client import CanvasClient
 from audit.repos.canvas_repo import CanvasRepo
-from audit.services.accommodations import AccommodationService, AccommodationType
-from audit.models.canvas import Submission, Quiz
 
 
-
-async def demo() -> None:
-    return
-    # settings = Settings.from_env()
-    # client = CanvasClient(
-    #     CanvasConfig(
-    #         base_url=settings.canvas_base_url,
-    #         token=settings.canvas_token,
-    #     )
-    # )
-
-    # try:
-    #     repo = CanvasRepo(client)
-    #     svc = AccommodationService(repo)
-
-    #     rows = await svc.audit_quiz(
-    #         course_id=12977,
-    #         quiz_id=48379,
-    #         engine="classic",
-    #         accommodation_types=[AccommodationType.EXTRA_TIME],
-    #     )
-    #     print(f"rows: {len(rows)}")
-    #     for row in rows[:5]:
-    #         print(row)
-    # finally:
-    #     await client.aclose()
+async def main():
+    async with httpx.AsyncClient() as http:
+        client = CanvasClient(
+            base_url=Settings().canvas_base_url,
+            token=Settings().canvas_token,
+            http=http,
+        )
+        repo = CanvasRepo(client, account_id=Settings().canvas_account_id)
+        courses = await repo.list_courses(term_id=117, engine="new")
+        for c in courses:
+            print(c)
 
 
-if __name__ == "__main__":
-    asyncio.run(demo())
+asyncio.run(main())

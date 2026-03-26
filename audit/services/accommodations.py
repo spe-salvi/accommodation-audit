@@ -1,3 +1,24 @@
+"""
+Core business logic for accommodation auditing.
+
+This module contains ``AccommodationService`` — the central orchestrator
+that evaluates whether students have accommodations applied to their
+quizzes and produces structured audit results.
+
+The service is organized into three concerns:
+
+  1. **Context loading** — Fetching and assembling the data needed to
+     evaluate accommodations (participants, submissions, items).
+  2. **Evaluation** — Pure functions that inspect model data and return
+     an ``AccommodationResult`` (has/doesn't have + details).
+  3. **Audit composition** — Methods that combine context loading and
+     evaluation across users, quizzes, courses, and terms to produce
+     lists of ``AuditRow`` objects.
+
+The service depends on ``AccommodationRepo`` (a protocol), so it works
+identically whether the data comes from the Canvas API or local JSON.
+"""
+
 from dataclasses import dataclass
 from typing import Callable, Iterable
 
@@ -8,12 +29,30 @@ from audit.repos.base import AccommodationRepo, AccommodationType
 
 @dataclass(frozen=True)
 class AccommodationResult:
+    """
+    The outcome of evaluating a single accommodation for a single user.
+
+    ``has_accommodation`` is the boolean verdict; ``details`` carries
+    the raw values that led to the decision (e.g., extra_time_in_seconds)
+    for inclusion in audit output.
+    """
+
     has_accommodation: bool
     details: dict
 
 
 @dataclass(frozen=True)
 class EvaluationContext:
+    """
+    The minimal data slice needed to evaluate one accommodation for one user.
+
+    Which fields are populated depends on the accommodation type and engine:
+      - Extra time (new): needs ``participant``
+      - Extra time (classic): needs ``submission``
+      - Extra attempts: needs ``submission``
+      - Spell check: needs ``items`` (evaluated per-item, not per-user)
+    """
+
     engine: str
     participant: Participant | None = None
     submission: Submission | None = None
@@ -22,6 +61,18 @@ class EvaluationContext:
 
 @dataclass(frozen=True)
 class QuizAuditContext:
+    """
+    Pre-loaded data for auditing all users/items on a single quiz.
+
+    Eagerly loading all participants, submissions, and items upfront
+    (rather than fetching per-user) minimizes API calls at the cost of
+    memory. This is the right tradeoff when auditing quizzes with
+    hundreds of students.
+
+    The ``submissions_by_user`` and ``submissions_by_session`` dicts
+    enable O(1) matching during evaluation.
+    """
+
     course_id: int
     quiz_id: int
     engine: str
@@ -32,10 +83,30 @@ class QuizAuditContext:
     submissions_by_session: dict[tuple[str | None, str | None], Submission]
 
 
+# Type alias for evaluator functions — each takes an EvaluationContext
+# and returns an AccommodationResult.
 Evaluator = Callable[[EvaluationContext], AccommodationResult]
 
 
 class AccommodationService:
+    """
+    Orchestrates accommodation evaluation and audit report generation.
+
+    The service maintains a registry of evaluator functions keyed by
+    (engine, accommodation_type). Adding support for a new accommodation
+    type requires:
+      1. Adding the type to ``AccommodationType`` enum
+      2. Writing an evaluator method
+      3. Registering it in ``self._evaluators``
+
+    Public API (from narrowest to broadest scope):
+      - ``evaluate()`` — Single user, single accommodation
+      - ``audit_accommodation()`` — All users for one accommodation on one quiz
+      - ``audit_quiz()`` — All accommodations on one quiz
+      - ``audit_course()`` — All quizzes in a course
+      - ``audit_term()`` — All courses in a term
+    """
+
     def __init__(self, repo: AccommodationRepo):
         self.repo = repo
         self._evaluators: dict[tuple[str, AccommodationType], Evaluator] = {
@@ -57,6 +128,7 @@ class AccommodationService:
         submission: Submission | None = None,
         items: list[NewQuizItem] | None = None,
     ) -> EvaluationContext:
+        """Construct an EvaluationContext from pre-fetched model objects."""
         return EvaluationContext(
             engine=engine,
             participant=participant,
@@ -73,6 +145,13 @@ class AccommodationService:
         engine: str,
         accommodation_type: AccommodationType,
     ) -> EvaluationContext:
+        """
+        Fetch only the data needed for a specific accommodation evaluation.
+
+        This is the single-user path — it loads just the participant,
+        submission, or items needed for the requested accommodation type,
+        avoiding unnecessary API calls.
+        """
         participant = None
         submission = None
         items = None
@@ -123,6 +202,13 @@ class AccommodationService:
         quiz_id: int,
         engine: str,
     ) -> QuizAuditContext:
+        """
+        Eagerly load all data for a quiz into a single context object.
+
+        This is the batch path — used when auditing all users on a quiz.
+        Loads participants, submissions, and items in bulk, then builds
+        lookup dicts for O(1) matching during evaluation.
+        """
         participants: list[Participant] = []
         if engine == "new":
             participants = await self.repo.list_participants(
@@ -173,6 +259,12 @@ class AccommodationService:
         accommodation_type: AccommodationType,
         ctx: EvaluationContext,
     ) -> AccommodationResult:
+        """
+        Dispatch to the correct evaluator based on engine and accommodation type.
+
+        Returns a "not found" result if no evaluator is registered for
+        the given combination (e.g., spell-check on classic quizzes).
+        """
         handler = self._evaluators.get((ctx.engine, accommodation_type))
         if handler is None:
             return AccommodationResult(False, {})
@@ -187,6 +279,13 @@ class AccommodationService:
         engine: str,
         accommodation_type: AccommodationType,
     ) -> AccommodationResult:
+        """
+        Evaluate a single accommodation for a single user.
+
+        This is the narrowest public API — loads just the data needed
+        and runs the evaluator. Useful for spot-checking individual
+        students.
+        """
         ctx = await self._load_evaluation_context(
             course_id=course_id,
             quiz_id=quiz_id,
@@ -204,6 +303,7 @@ class AccommodationService:
     # ----------------------------
 
     async def audit_accommodation(self, request: AuditRequest) -> list[AuditRow]:
+        """Audit a single accommodation type across all users on a quiz."""
         ctx = await self._load_quiz_audit_context(
             course_id=request.course_id,
             quiz_id=request.quiz_id,
@@ -222,6 +322,13 @@ class AccommodationService:
         engine: str,
         accommodation_types: Iterable[AccommodationType] | None = None,
     ) -> list[AuditRow]:
+        """
+        Audit all (or selected) accommodation types on a single quiz.
+
+        If *accommodation_types* is None, all known types are evaluated.
+        Spell-check is automatically excluded for classic quizzes since
+        the classic engine does not expose per-item configuration.
+        """
         if accommodation_types is None:
             requested = [
                 AccommodationType.EXTRA_TIME,
@@ -254,6 +361,13 @@ class AccommodationService:
         return rows
 
     def _build_spell_check_rows(self, *, ctx: QuizAuditContext) -> list[AuditRow]:
+        """
+        Build per-item audit rows for spell-check on essay questions.
+
+        Spell-check is a quiz-level (not user-level) accommodation —
+        it's either enabled or disabled on each essay question. Non-essay
+        items are skipped.
+        """
         if ctx.engine != "new":
             return []
 
@@ -290,6 +404,13 @@ class AccommodationService:
         ctx: QuizAuditContext,
         accommodation_type: AccommodationType,
     ) -> list[AuditRow]:
+        """
+        Build per-user audit rows for a given accommodation type.
+
+        For new-engine quizzes, iterates over participants (since they
+        carry the accommodation data). For classic quizzes, iterates
+        over submissions instead.
+        """
         rows: list[AuditRow] = []
 
         if ctx.engine == "new":
@@ -330,6 +451,7 @@ class AccommodationService:
 
             return rows
 
+        # Classic engine: iterate over submissions
         for submission in ctx.submissions:
             eval_ctx = self._build_evaluation_context(
                 engine=ctx.engine,
@@ -364,6 +486,12 @@ class AccommodationService:
         ctx: QuizAuditContext,
         accommodation_type: AccommodationType,
     ) -> list[AuditRow]:
+        """
+        Route to the correct row-builder based on accommodation type.
+
+        Spell-check produces per-item rows; everything else produces
+        per-user rows.
+        """
         if accommodation_type == AccommodationType.SPELL_CHECK:
             return self._build_spell_check_rows(ctx=ctx)
 
@@ -371,7 +499,6 @@ class AccommodationService:
             ctx=ctx,
             accommodation_type=accommodation_type,
         )
-    
 
     async def audit_course(
         self,
@@ -380,6 +507,7 @@ class AccommodationService:
         engine: str,
         accommodation_types: Iterable[AccommodationType] | None = None,
     ) -> list[AuditRow]:
+        """Audit all quizzes in a course by composing per-quiz audits."""
         quizzes = await self.repo.list_quizzes(
             course_id=course_id,
             engine=engine,
@@ -398,7 +526,6 @@ class AccommodationService:
 
         return rows
 
-
     async def audit_term(
         self,
         *,
@@ -406,6 +533,7 @@ class AccommodationService:
         engine: str,
         accommodation_types: Iterable[AccommodationType] | None = None,
     ) -> list[AuditRow]:
+        """Audit all courses in a term by composing per-course audits."""
         courses = await self.repo.list_courses(
             term_id=term_id,
             engine=engine,
@@ -423,7 +551,6 @@ class AccommodationService:
 
         return rows
 
-
     # ----------------------------
     # Matching
     # ----------------------------
@@ -436,6 +563,16 @@ class AccommodationService:
         submissions_by_user: dict[int, Submission],
         submissions_by_session: dict[tuple[str | None, str | None], Submission],
     ) -> Submission | None:
+        """
+        Find the submission that belongs to a given participant.
+
+        For new-engine quizzes, tries session-based matching first
+        (participant_session_id + quiz_session_id), then falls back
+        to user_id. Session-based matching is more reliable because
+        a user can have multiple participant records across retakes.
+
+        For classic quizzes, matches by user_id only.
+        """
         if engine == "new":
             submission = submissions_by_session.get(
                 (participant.participant_session_id, participant.quiz_session_id)
@@ -455,6 +592,15 @@ class AccommodationService:
     # ----------------------------
 
     def _evaluate_extra_time_new(self, ctx: EvaluationContext) -> AccommodationResult:
+        """
+        Evaluate extra time for a new-engine quiz participant.
+
+        A participant has extra time if either:
+          - timer_multiplier is enabled with a value > 1 (e.g., 1.5x)
+          - extra_time is enabled with a positive seconds value
+
+        These are set at the enrollment level in the New Quizzes API.
+        """
         participant = ctx.participant
         if participant is None:
             return AccommodationResult(False, {})
@@ -472,6 +618,13 @@ class AccommodationService:
         )
 
     def _evaluate_extra_time_classic(self, ctx: EvaluationContext) -> AccommodationResult:
+        """
+        Evaluate extra time for a classic quiz submission.
+
+        Classic quizzes store extra_time directly on the submission
+        object (in minutes). A positive value means the accommodation
+        was applied.
+        """
         submission = ctx.submission
         if submission is None:
             return AccommodationResult(False, {})
@@ -485,6 +638,13 @@ class AccommodationService:
         )
 
     def _evaluate_extra_attempts(self, ctx: EvaluationContext) -> AccommodationResult:
+        """
+        Evaluate extra attempts for either engine.
+
+        Both engines store extra_attempts on the submission. A positive
+        value means the student was given additional attempts beyond the
+        quiz default.
+        """
         submission = ctx.submission
         if submission is None:
             return AccommodationResult(False, {})

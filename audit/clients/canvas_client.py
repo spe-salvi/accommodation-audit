@@ -1,64 +1,165 @@
-from __future__ import annotations
+"""
+Canvas LMS async HTTP client.
 
-from dataclasses import dataclass
-from typing import Any
+Provides authenticated access to the Canvas REST API with automatic
+pagination handling (RFC 5988 Link headers) and response unwrapping.
+
+This module owns transport concerns only — authentication, pagination,
+and response shape normalization. It does not contain any domain logic
+or model parsing; that responsibility belongs to the repository layer.
+
+Usage:
+    async with httpx.AsyncClient() as http:
+        client = CanvasClient(
+            base_url="https://canvas.university.edu",
+            token="your_api_token",
+            http=http,
+        )
+        courses = await client.get_paginated_json("/api/v1/courses")
+"""
+
+from __future__ import annotations
 
 import httpx
 
 
-@dataclass(slots=True, frozen=True)
-class CanvasConfig:
-    base_url: str
-    token: str
-    timeout_seconds: float = 30.0
-
-
 class CanvasClient:
-    def __init__(self, config: CanvasConfig):
-        self._config = config
-        self._client = httpx.AsyncClient(
-            base_url=config.base_url.rstrip("/"),
-            timeout=config.timeout_seconds,
-            headers={
-                "Authorization": f"Bearer {config.token}",
-                "Accept": "application/json",
-            },
-        )
+    """
+    Thin async HTTP client for the Canvas REST API.
 
-    async def aclose(self) -> None:
-        await self._client.aclose()
+    Owns:
+      - Auth headers (Bearer token)
+      - Single-object GET  (get_json)
+      - Paginated GET      (get_paginated_json) via Link-header traversal
 
-    async def get_json(
-        self,
-        path: str,
-        *,
-        params: dict[str, Any] | None = None,
-    ) -> Any:
-        response = await self._client.get(path, params=params)
-        response.raise_for_status()
+    The caller is responsible for creating and closing the httpx.AsyncClient,
+    which makes the client easy to inject in tests and easy to share across
+    requests in production.
+
+    Design note:
+        Accepting httpx.AsyncClient via dependency injection (rather than
+        creating one internally) keeps this class testable — tests can
+        pass a mock transport without hitting the network.
+    """
+
+    def __init__(self, *, base_url: str, token: str, http: httpx.AsyncClient) -> None:
+        self._base_url = base_url.rstrip("/")
+        self._headers = {"Authorization": f"Bearer {token}"}
+        self._http = http
+
+    # ------------------------------------------------------------------
+    # Public interface
+    # ------------------------------------------------------------------
+
+    async def get_json(self, path: str, *, params: dict | None = None) -> dict:
+        """
+        Fetch a single JSON object from a Canvas endpoint.
+
+        Use this for endpoints that return a single resource (e.g., a
+        specific course or quiz). For list endpoints, use
+        get_paginated_json instead.
+
+        Raises:
+            httpx.HTTPStatusError: On any non-2xx response.
+        """
+        response = await self._get(path, params=params)
         return response.json()
 
     async def get_paginated_json(
-        self,
-        path: str,
-        *,
-        params: dict[str, Any] | None = None,
-    ) -> list[dict[str, Any]]:
-        results: list[dict[str, Any]] = []
-        next_url: str | None = path
-        next_params = dict(params or {})
+        self, path: str, *, params: dict | None = None
+    ) -> list:
+        """
+        Fetch all pages for a paginated Canvas endpoint.
 
-        while next_url is not None:
-            response = await self._client.get(next_url, params=next_params)
+        Canvas uses RFC 5988 Link headers for pagination. This method
+        follows the ``rel="next"`` link until no more pages remain,
+        collecting all results into a single flat list.
+
+        Canvas responses come in two shapes:
+          - A bare JSON array (most endpoints)
+          - A wrapped dict with one list-valued key,
+            e.g. ``{"quiz_submissions": [...]}`` (classic quiz submissions)
+
+        Both shapes are unwrapped transparently — the caller always
+        receives a flat ``list[dict]``.
+
+        Note:
+            Query params are only sent with the first request. Subsequent
+            page URLs are fully-formed by Canvas and must not have params
+            appended again.
+
+        Raises:
+            httpx.HTTPStatusError: On any non-2xx response during traversal.
+        """
+        results: list = []
+        url: str | None = f"{self._base_url}{path}"
+
+        while url:
+            response = await self._http.get(url, headers=self._headers, params=params)
             response.raise_for_status()
 
-            payload = response.json()
-            if isinstance(payload, list):
-                results.extend(payload)
-            else:
-                break
+            data = response.json()
+            results.extend(self._unwrap(data))
 
-            next_url = response.links.get("next", {}).get("url")
-            next_params = None
+            # Only the first request uses caller-supplied params; Canvas
+            # bakes pagination state into subsequent URLs.
+            params = None
+            url = self._next_link(response.headers.get("link", ""))
 
         return results
+
+    # ------------------------------------------------------------------
+    # Private helpers
+    # ------------------------------------------------------------------
+
+    async def _get(self, path: str, *, params: dict | None = None) -> httpx.Response:
+        """Issue a single GET request and raise on non-2xx."""
+        url = f"{self._base_url}{path}"
+        response = await self._http.get(url, headers=self._headers, params=params)
+        response.raise_for_status()
+        return response
+
+    @staticmethod
+    def _unwrap(data: list | dict) -> list:
+        """
+        Normalize a Canvas response into a plain list.
+
+        Canvas wraps some endpoints in a dict with a single list-valued
+        key (e.g. ``{"quiz_submissions": [...]}``) while others return
+        a bare list. This method handles both so upstream code never
+        needs to check.
+        """
+        if isinstance(data, list):
+            return data
+        if isinstance(data, dict):
+            for value in data.values():
+                if isinstance(value, list):
+                    return value
+        return []
+
+    @staticmethod
+    def _next_link(link_header: str) -> str | None:
+        """
+        Extract the 'next' URL from an RFC 5988 Link header.
+
+        Returns None if there is no next page, signaling the end of
+        pagination.
+
+        Example header value::
+
+            <https://canvas.example.com/api/v1/courses?page=2>; rel="next",
+            <https://canvas.example.com/api/v1/courses?page=5>; rel="last"
+        """
+        if not link_header:
+            return None
+
+        for part in link_header.split(","):
+            segments = part.strip().split(";")
+            if len(segments) < 2:
+                continue
+            url_part = segments[0].strip().strip("<>")
+            for attr in segments[1:]:
+                if attr.strip() == 'rel="next"':
+                    return url_part
+
+        return None
