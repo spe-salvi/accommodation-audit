@@ -1,3 +1,22 @@
+"""
+Canvas LMS async HTTP client.
+
+Provides authenticated access to the Canvas REST API with automatic
+pagination handling (RFC 5988 Link headers) and response unwrapping.
+
+This module owns transport concerns only — authentication, pagination,
+and response shape normalization. It does not contain any domain logic
+or model parsing; that responsibility belongs to the repository layer.
+
+Usage:
+    async with httpx.AsyncClient() as http:
+        client = CanvasClient(
+            base_url="https://canvas.university.edu",
+            token="your_api_token",
+            http=http,
+        )
+        courses = await client.get_paginated_json("/api/v1/courses")
+"""
 from __future__ import annotations
 
 import httpx
@@ -16,43 +35,60 @@ class CanvasClient:
     which makes the client easy to inject in tests and easy to share across
     requests in production.
 
-    Typical production use:
-        async with httpx.AsyncClient() as http:
-            client = CanvasClient(
-                base_url=settings.canvas_base_url,
-                token=settings.canvas_token,
-                http=http,
-            )
-            data = await client.get_paginated_json("/api/v1/courses")
+    Design note:
+        Accepting httpx.AsyncClient via dependency injection (rather than
+        creating one internally) keeps this class testable — tests can
+        pass a mock transport without hitting the network.
     """
 
-    def __init__(self, *, base_url: str, token: str, http: httpx.AsyncClient) -> None:
+    def __init__(self, *, base_url: str, headers: dict[str, str], http: httpx.AsyncClient) -> None:
         self._base_url = base_url.rstrip("/")
-        self._headers = {"Authorization": f"Bearer {token}"}
+        self._headers = headers
         self._http = http
 
     # ------------------------------------------------------------------
     # Public interface
     # ------------------------------------------------------------------
 
+    """
+    Fetch a single JSON object from a Canvas endpoint.
+
+    Use this for endpoints that return a single resource (e.g., a
+    specific course or quiz). 
+
+    Raises:
+        httpx.HTTPStatusError: On any non-2xx response.
+    """
     async def get_json(self, path: str, *, params: dict | None = None) -> dict:
-        """Fetch a single JSON object. Raises on non-2xx."""
         response = await self._get(path, params=params)
         return response.json()
 
+    """
+    Fetch all pages for a paginated Canvas endpoint.
+
+    Canvas uses RFC 5988 Link headers for pagination. This method
+    follows the ``rel="next"`` link until no more pages remain,
+    collecting all results into a single flat list.
+
+    Canvas responses come in two shapes:
+        - A bare JSON array (most endpoints)
+        - A wrapped dict with one list-valued key,
+        e.g. ``{"quiz_submissions": [...]}`` (classic quiz submissions)
+
+    Both shapes are unwrapped transparently — the caller always
+    receives a flat ``list[dict]``.
+
+    Note:
+        Query params are only sent with the first request. Subsequent
+        page URLs are fully-formed by Canvas and must not have params
+        appended again.
+
+    Raises:
+        httpx.HTTPStatusError: On any non-2xx response during traversal.
+    """
     async def get_paginated_json(
         self, path: str, *, params: dict | None = None
     ) -> list:
-        """
-        Fetch all pages for a paginated endpoint, following Link headers.
-
-        Canvas always returns either:
-          - a JSON array  (most endpoints)
-          - a wrapped dict, e.g. {"quiz_submissions": [...]}  (classic quiz submissions)
-
-        Both shapes are unwrapped into a flat list before returning.
-        The caller never sees pagination or wrapping.
-        """
         results: list = []
         url: str | None = f"{self._base_url}{path}"
 
@@ -63,8 +99,8 @@ class CanvasClient:
             data = response.json()
             results.extend(self._unwrap(data))
 
-            # params only apply to the first request; subsequent URLs are
-            # fully-formed by Canvas and must not have params appended again.
+            # Only the first request uses caller-supplied params; Canvas
+            # bakes pagination state into subsequent URLs.
             params = None
             url = self._next_link(response.headers.get("link", ""))
 
@@ -74,19 +110,23 @@ class CanvasClient:
     # Private helpers
     # ------------------------------------------------------------------
 
+    """Issue a single GET request and raise on non-2xx."""
     async def _get(self, path: str, *, params: dict | None = None) -> httpx.Response:
         url = f"{self._base_url}{path}"
         response = await self._http.get(url, headers=self._headers, params=params)
         response.raise_for_status()
         return response
 
+    """
+    Normalize a Canvas response into a plain list.
+
+    Canvas wraps some endpoints in a dict with a single list-valued
+    key (e.g. ``{"quiz_submissions": [...]}``) while others return
+    a bare list. This method handles both so upstream code never
+    needs to check.
+    """
     @staticmethod
     def _unwrap(data: list | dict) -> list:
-        """
-        Return the list payload regardless of whether Canvas wrapped it.
-        For dicts, we take the first list-valued key (Canvas only ever wraps
-        one collection per response, e.g. "quiz_submissions").
-        """
         if isinstance(data, list):
             return data
         if isinstance(data, dict):
@@ -98,9 +138,13 @@ class CanvasClient:
     @staticmethod
     def _next_link(link_header: str) -> str | None:
         """
-        Parse the RFC 5988 Link header and return the 'next' URL, or None.
+        Extract the 'next' URL from an RFC 5988 Link header.
 
-        Example header value:
+        Returns None if there is no next page, signaling the end of
+        pagination.
+
+        Example header value::
+
             <https://canvas.example.com/api/v1/courses?page=2>; rel="next",
             <https://canvas.example.com/api/v1/courses?page=5>; rel="last"
         """

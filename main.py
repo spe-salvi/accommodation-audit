@@ -1,3 +1,12 @@
+"""
+CLI entry point for the accommodation audit system.
+
+Creates the full dependency chain (HTTP client → Canvas client →
+repository → service) and runs a sample audit. In production this
+would accept command-line arguments for term_id, course_id, engine,
+and accommodation types.
+"""
+
 import asyncio
 import httpx
 from audit.config import settings
@@ -11,11 +20,9 @@ async def main():
             token=settings.canvas_token,
             http=http,
         )
-        repo = CanvasRepo(client)
-        submissions = await repo.list_submissions(
-            course_id=12977, quiz_id=189437, engine="new"
-        )
-        for s in submissions:
-            print(s)
+        repo = CanvasRepo(client, account_id=settings.canvas_account_id)
+        courses = await repo.list_courses(term_id=117, engine="new")
+        for c in courses:
+            print(c)
 
 asyncio.run(main())
