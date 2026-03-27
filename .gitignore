@@ -9,3 +9,5 @@ audit/tests/__pycache__/
 audit/tests/integration/__pycache__/
 audit/tests/unit/__pycache__/
 .env
+__pycache__
+.pytest_cache
