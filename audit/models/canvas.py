@@ -249,13 +249,20 @@ class Quiz:
         quizzes: list[Quiz] = []
         for item in payload:
             raw_quiz_id = parse_int(item.get("id"))
-            course_id_override = course_id  # use the known course_id as default override
+            # Start with the known course_id as the default override,
+            # then check course_id_by_quiz for a more specific match.
+            course_id_override = course_id
+            if raw_quiz_id is not None and course_id_by_quiz is not None:
+                course_id_override = course_id_by_quiz.get(raw_quiz_id) or course_id_override
+
             quiz = cls.from_api(
-                data=item,
                 engine=engine,
+                data=item,
                 course_id_override=course_id_override,
             )
             if quiz is None:
+                continue
+            if course_id is not None and quiz.course_id != course_id:
                 continue
             quizzes.append(quiz)
         return quizzes

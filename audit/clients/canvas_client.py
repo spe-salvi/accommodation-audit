@@ -2,11 +2,24 @@
 Canvas LMS async HTTP client.
 
 Provides authenticated access to the Canvas REST API with automatic
-pagination handling (RFC 5988 Link headers) and response unwrapping.
+pagination handling (RFC 5988 Link headers), response unwrapping,
+and retry on transient failures.
 
-This module owns transport concerns only — authentication, pagination,
-and response shape normalization. It does not contain any domain logic
-or model parsing; that responsibility belongs to the repository layer.
+This module owns transport concerns only. Domain exceptions from
+``audit.exceptions`` are raised so callers never need to import httpx.
+
+Retry behaviour
+---------------
+Each individual HTTP request is retried automatically on transient
+failures (429, 5xx, network errors) using exponential backoff with
+full jitter. Retries are applied per-request so that only the failing
+page of a paginated sequence is retried, not the whole collection.
+
+Exceptions raised
+-----------------
+RateLimitError    HTTP 429 after all retries exhausted
+CanvasApiError    Any other non-2xx HTTP response after retries
+AuditError        Wraps unexpected transport-level failures
 
 Usage:
     async with httpx.AsyncClient() as http:
@@ -19,7 +32,14 @@ Usage:
 """
 from __future__ import annotations
 
+import logging
+
 import httpx
+
+from audit.clients.retry import retryable
+from audit.exceptions import AuditError, CanvasApiError, RateLimitError
+
+logger = logging.getLogger(__name__)
 
 
 class CanvasClient:
@@ -30,77 +50,57 @@ class CanvasClient:
       - Auth headers (Bearer token)
       - Single-object GET  (get_json)
       - Paginated GET      (get_paginated_json) via Link-header traversal
-
-    The caller is responsible for creating and closing the httpx.AsyncClient,
-    which makes the client easy to inject in tests and easy to share across
-    requests in production.
-
-    Design note:
-        Accepting httpx.AsyncClient via dependency injection (rather than
-        creating one internally) keeps this class testable — tests can
-        pass a mock transport without hitting the network.
+      - Automatic retry on transient failures via ``@retryable``
+      - Domain exception wrapping so callers stay httpx-free
     """
 
-    def __init__(self, *, base_url: str, headers: dict[str, str], http: httpx.AsyncClient) -> None:
+    def __init__(self, *, base_url: str, token: str, http: httpx.AsyncClient) -> None:
         self._base_url = base_url.rstrip("/")
-        self._headers = headers
+        self._headers = {"Authorization": f"Bearer {token}"}
         self._http = http
 
     # ------------------------------------------------------------------
     # Public interface
     # ------------------------------------------------------------------
 
-    """
-    Fetch a single JSON object from a Canvas endpoint.
-
-    Use this for endpoints that return a single resource (e.g., a
-    specific course or quiz). 
-
-    Raises:
-        httpx.HTTPStatusError: On any non-2xx response.
-    """
     async def get_json(self, path: str, *, params: dict | None = None) -> dict:
+        """
+        Fetch a single JSON object from a Canvas endpoint.
+
+        Raises
+        ------
+        RateLimitError
+            HTTP 429 after all retries exhausted.
+        CanvasApiError
+            Any other non-2xx response after retries.
+        """
         response = await self._get(path, params=params)
         return response.json()
 
-    """
-    Fetch all pages for a paginated Canvas endpoint.
-
-    Canvas uses RFC 5988 Link headers for pagination. This method
-    follows the ``rel="next"`` link until no more pages remain,
-    collecting all results into a single flat list.
-
-    Canvas responses come in two shapes:
-        - A bare JSON array (most endpoints)
-        - A wrapped dict with one list-valued key,
-        e.g. ``{"quiz_submissions": [...]}`` (classic quiz submissions)
-
-    Both shapes are unwrapped transparently — the caller always
-    receives a flat ``list[dict]``.
-
-    Note:
-        Query params are only sent with the first request. Subsequent
-        page URLs are fully-formed by Canvas and must not have params
-        appended again.
-
-    Raises:
-        httpx.HTTPStatusError: On any non-2xx response during traversal.
-    """
     async def get_paginated_json(
         self, path: str, *, params: dict | None = None
     ) -> list:
+        """
+        Fetch all pages for a paginated Canvas endpoint.
+
+        Follows RFC 5988 Link headers until no next page remains.
+        Each page request is independently retried on transient failures.
+        Both bare-array and wrapped-dict response shapes are normalised
+        into a flat list before returning.
+
+        Raises
+        ------
+        RateLimitError
+            HTTP 429 after all retries exhausted on any page.
+        CanvasApiError
+            Any other non-2xx response after retries.
+        """
         results: list = []
         url: str | None = f"{self._base_url}{path}"
 
         while url:
-            response = await self._http.get(url, headers=self._headers, params=params)
-            response.raise_for_status()
-
-            data = response.json()
-            results.extend(self._unwrap(data))
-
-            # Only the first request uses caller-supplied params; Canvas
-            # bakes pagination state into subsequent URLs.
+            response = await self._fetch(url, params=params)
+            results.extend(self._unwrap(response.json()))
             params = None
             url = self._next_link(response.headers.get("link", ""))
 
@@ -110,23 +110,48 @@ class CanvasClient:
     # Private helpers
     # ------------------------------------------------------------------
 
-    """Issue a single GET request and raise on non-2xx."""
     async def _get(self, path: str, *, params: dict | None = None) -> httpx.Response:
+        """Issue a single GET request by path."""
         url = f"{self._base_url}{path}"
-        response = await self._http.get(url, headers=self._headers, params=params)
-        response.raise_for_status()
-        return response
+        return await self._fetch(url, params=params)
 
-    """
-    Normalize a Canvas response into a plain list.
+    @retryable
+    async def _fetch(
+        self, url: str, *, params: dict | None = None
+    ) -> httpx.Response:
+        """
+        Issue a single GET request by full URL with retry on transient failures.
 
-    Canvas wraps some endpoints in a dict with a single list-valued
-    key (e.g. ``{"quiz_submissions": [...]}``) while others return
-    a bare list. This method handles both so upstream code never
-    needs to check.
-    """
+        Wraps httpx exceptions in domain exceptions after all retries
+        are exhausted so callers never need to import httpx.
+        """
+        try:
+            response = await self._http.get(url, headers=self._headers, params=params)
+            response.raise_for_status()
+            return response
+        except httpx.HTTPStatusError as exc:
+            status = exc.response.status_code
+            if status == 429:
+                retry_after_raw = exc.response.headers.get("retry-after")
+                retry_after = float(retry_after_raw) if retry_after_raw else None
+                raise RateLimitError(
+                    f"Canvas rate limit exceeded",
+                    url=url,
+                    retry_after=retry_after,
+                ) from exc
+            raise CanvasApiError(
+                f"Canvas API request failed",
+                status_code=status,
+                url=url,
+            ) from exc
+        except httpx.TransportError as exc:
+            raise AuditError(
+                f"Network error reaching Canvas: {exc}"
+            ) from exc
+
     @staticmethod
     def _unwrap(data: list | dict) -> list:
+        """Normalise a Canvas response to a flat list."""
         if isinstance(data, list):
             return data
         if isinstance(data, dict):
@@ -135,23 +160,11 @@ class CanvasClient:
                     return value
         return []
 
-    """
-    Extract the 'next' URL from an RFC 5988 Link header.
-
-    Returns None if there is no next page, signaling the end of
-    pagination.
-
-    Example header value::
-
-        <https://canvas.example.com/api/v1/courses?page=2>; rel="next",
-        <https://canvas.example.com/api/v1/courses?page=5>; rel="last"
-    """
     @staticmethod
     def _next_link(link_header: str) -> str | None:
-
+        """Parse the 'next' URL from an RFC 5988 Link header, or None."""
         if not link_header:
             return None
-
         for part in link_header.split(","):
             segments = part.strip().split(";")
             if len(segments) < 2:
@@ -160,5 +173,4 @@ class CanvasClient:
             for attr in segments[1:]:
                 if attr.strip() == 'rel="next"':
                     return url_part
-
         return None

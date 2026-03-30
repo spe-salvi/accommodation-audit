@@ -77,26 +77,63 @@ async def test_list_items_new(canvas_repo):
 
 
 # ---------------------------------------------------------------------------
-# Full audit service smoke test
+# Full audit service smoke tests
 # ---------------------------------------------------------------------------
 
 @pytest.mark.integration
-async def test_audit_quiz_new_via_canvas_repo(canvas_repo):
+async def test_audit_quiz_new_extra_attempt_via_canvas_repo(canvas_repo):
+    """
+    EXTRA_ATTEMPT for new quizzes reads from submissions (Canvas API),
+    so this test passes without the LTI client injected.
+    """
     svc = AccommodationService(canvas_repo)
-    # NOTE: EXTRA_TIME for new quizzes requires participants endpoint
-    # which needs the LTI token (Phase 3). Rows will exist but
-    # has_accommodation will be False until then.
     rows = await svc.audit_quiz(
         course_id=12977,
         quiz_id=189437,
         engine="new",
-        accommodation_types=[
-            AccommodationType.EXTRA_ATTEMPT,
-        ],
+        accommodation_types=[AccommodationType.EXTRA_ATTEMPT],
     )
     assert len(rows) > 0
     assert all(r.course_id == 12977 for r in rows)
     assert all(r.quiz_id == 189437 for r in rows)
+    assert all(r.accommodation_type == AccommodationType.EXTRA_ATTEMPT for r in rows)
+
+
+@pytest.mark.integration
+async def test_audit_quiz_new_spell_check_via_canvas_repo(canvas_repo):
+    """
+    SPELL_CHECK reads from quiz items (Canvas API),
+    so this test passes without the LTI client injected.
+    """
+    svc = AccommodationService(canvas_repo)
+    rows = await svc.audit_quiz(
+        course_id=12977,
+        quiz_id=189437,
+        engine="new",
+        accommodation_types=[AccommodationType.SPELL_CHECK],
+    )
+    assert len(rows) > 0
+    assert all(r.course_id == 12977 for r in rows)
+    assert all(r.quiz_id == 189437 for r in rows)
+    assert all(r.accommodation_type == AccommodationType.SPELL_CHECK for r in rows)
+
+
+@pytest.mark.integration
+async def test_audit_quiz_new_extra_time_without_lti_returns_no_rows(canvas_repo):
+    """
+    EXTRA_TIME for new quizzes requires participants from the LTI API.
+    Without the LTI client injected, participants are empty and no rows
+    are generated. This is expected behavior — not a bug.
+    """
+    svc = AccommodationService(canvas_repo)
+    rows = await svc.audit_quiz(
+        course_id=12977,
+        quiz_id=189437,
+        engine="new",
+        accommodation_types=[AccommodationType.EXTRA_TIME],
+    )
+    # No LTI client → no participants → no EXTRA_TIME rows
+    assert len(rows) == 0
 
 
 @pytest.mark.integration

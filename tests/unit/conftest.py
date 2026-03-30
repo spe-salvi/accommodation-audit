@@ -6,8 +6,9 @@ from audit.services.accommodations import AccommodationService, AccommodationTyp
 from audit.repos.json_repo import JsonRepo
 
 
-DUMPS_DIR = Path(__file__).resolve().parent.parent
+DUMPS_DIR = Path(__file__).resolve().parent.parent.parent
 PATH = DUMPS_DIR / "dumps"
+
 
 @pytest.fixture
 def new_repo() -> JsonRepo:

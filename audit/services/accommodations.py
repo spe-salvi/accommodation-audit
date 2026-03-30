@@ -17,6 +17,26 @@ The service is organized into three concerns:
 
 The service depends on ``AccommodationRepo`` (a protocol), so it works
 identically whether the data comes from the Canvas API or local JSON.
+
+Data source routing
+-------------------
+Accommodation data lives in different places depending on engine and type:
+
+  +-----------------+---------+--------------------------------------------+
+  | Type            | Engine  | Source                                     |
+  +-----------------+---------+--------------------------------------------+
+  | EXTRA_TIME      | new     | Participant (LTI API — enrollment fields)  |
+  | EXTRA_TIME      | classic | Submission (Canvas API — extra_time field) |
+  | EXTRA_ATTEMPT   | new     | Submission (Canvas API — extra_attempts)   |
+  | EXTRA_ATTEMPT   | classic | Submission (Canvas API — extra_attempts)   |
+  | SPELL_CHECK     | new     | Quiz item (Canvas API — interaction_data)  |
+  | SPELL_CHECK     | classic | N/A (classic engine has no per-item config)|
+  +-----------------+---------+--------------------------------------------+
+
+This routing means EXTRA_ATTEMPT audits for new quizzes never require
+the LTI client — they always work with the standard Canvas API.
+EXTRA_TIME for new quizzes is the only type that requires the LTI
+participant endpoint.
 """
 
 from dataclasses import dataclass
@@ -27,53 +47,55 @@ from audit.models.canvas import Participant, Submission, NewQuizItem
 from audit.repos.base import AccommodationRepo, AccommodationType
 
 
-
-"""
-The outcome of evaluating a single accommodation for a single user.
-
-``has_accommodation`` is the boolean verdict; ``details`` carries
-the raw values that led to the decision (e.g., extra_time_in_seconds)
-for inclusion in audit output.
-"""
 @dataclass(frozen=True)
 class AccommodationResult:
+    """
+    The outcome of evaluating a single accommodation for a single user.
 
+    ``has_accommodation`` is the boolean verdict; ``details`` carries
+    the raw values that led to the decision (e.g., extra_time_in_seconds)
+    for inclusion in audit output.
+    """
     has_accommodation: bool
     details: dict
 
 
-"""
-The minimal data slice needed to evaluate one accommodation for one user.
-
-Which fields are populated depends on the accommodation type and engine:
-    - Extra time (new): needs ``participant``
-    - Extra time (classic): needs ``submission``
-    - Extra attempts: needs ``submission``
-    - Spell check: needs ``items`` (evaluated per-item, not per-user)
-"""
 @dataclass(frozen=True)
 class EvaluationContext:
+    """
+    The minimal data slice needed to evaluate one accommodation for one user.
 
+    Which fields are populated depends on the accommodation type and engine:
+        - Extra time (new):     needs ``participant``
+        - Extra time (classic): needs ``submission``
+        - Extra attempts:       needs ``submission`` (both engines)
+        - Spell check:          needs ``items`` (per-item, not per-user)
+    """
     engine: str
     participant: Participant | None = None
     submission: Submission | None = None
     items: list[NewQuizItem] | None = None
 
 
-"""
-Pre-loaded data for auditing all users/items on a single quiz.
-
-Eagerly loading all participants, submissions, and items upfront
-(rather than fetching per-user) minimizes API calls at the cost of
-memory. This is the right tradeoff when auditing quizzes with
-hundreds of students.
-
-The ``submissions_by_user`` and ``submissions_by_session`` dicts
-enable O(1) matching during evaluation.
-"""
 @dataclass(frozen=True)
 class QuizAuditContext:
+    """
+    Pre-loaded data for auditing all users/items on a single quiz.
 
+    Eagerly loading all participants, submissions, and items upfront
+    (rather than fetching per-user) minimizes API calls at the cost of
+    memory. This is the right tradeoff when auditing quizzes with
+    hundreds of students.
+
+    The ``submissions_by_user`` and ``submissions_by_session`` dicts
+    enable O(1) matching during evaluation.
+
+    Note on participants:
+        For new-engine quizzes, participants may be empty if the LTI
+        client is not available. In that case, EXTRA_TIME rows will not
+        be generated. EXTRA_ATTEMPT rows are always generated from
+        submissions regardless of participant availability.
+    """
     course_id: int
     quiz_id: int
     engine: str
@@ -89,24 +111,24 @@ class QuizAuditContext:
 Evaluator = Callable[[EvaluationContext], AccommodationResult]
 
 
-"""
-Orchestrates accommodation evaluation and audit report generation.
-
-The service maintains a registry of evaluator functions keyed by
-(engine, accommodation_type). Adding support for a new accommodation
-type requires:
-    1. Adding the type to ``AccommodationType`` enum
-    2. Writing an evaluator method
-    3. Registering it in ``self._evaluators``
-
-Public API (from narrowest to broadest scope):
-    - ``evaluate()`` — Single user, single accommodation
-    - ``audit_accommodation()`` — All users for one accommodation on one quiz
-    - ``audit_quiz()`` — All accommodations on one quiz
-    - ``audit_course()`` — All quizzes in a course
-    - ``audit_term()`` — All courses in a term
-"""
 class AccommodationService:
+    """
+    Orchestrates accommodation evaluation and audit report generation.
+
+    The service maintains a registry of evaluator functions keyed by
+    (engine, accommodation_type). Adding support for a new accommodation
+    type requires:
+        1. Adding the type to ``AccommodationType`` enum
+        2. Writing an evaluator method
+        3. Registering it in ``self._evaluators``
+
+    Public API (from narrowest to broadest scope):
+        - ``evaluate()``             — Single user, single accommodation
+        - ``audit_accommodation()``  — All users for one accommodation on one quiz
+        - ``audit_quiz()``           — All accommodations on one quiz
+        - ``audit_course()``         — All quizzes in a course
+        - ``audit_term()``           — All courses in a term
+    """
 
     def __init__(self, repo: AccommodationRepo):
         self.repo = repo
@@ -152,6 +174,10 @@ class AccommodationService:
         This is the single-user path — it loads just the participant,
         submission, or items needed for the requested accommodation type,
         avoiding unnecessary API calls.
+
+        EXTRA_ATTEMPT always reads from submissions regardless of engine.
+        EXTRA_TIME reads from participants for new quizzes (LTI required)
+        and from submissions for classic quizzes.
         """
         participant = None
         submission = None
@@ -174,6 +200,7 @@ class AccommodationService:
                 )
 
         elif accommodation_type == AccommodationType.EXTRA_ATTEMPT:
+            # Both engines: extra_attempts lives on submissions.
             submission = await self.repo.get_submission(
                 course_id=course_id,
                 quiz_id=quiz_id,
@@ -202,6 +229,7 @@ class AccommodationService:
         course_id: int,
         quiz_id: int,
         engine: str,
+        accommodation_types: list[AccommodationType] | None = None,
     ) -> QuizAuditContext:
         """
         Eagerly load all data for a quiz into a single context object.
@@ -209,9 +237,22 @@ class AccommodationService:
         This is the batch path — used when auditing all users on a quiz.
         Loads participants, submissions, and items in bulk, then builds
         lookup dicts for O(1) matching during evaluation.
+
+        Participants are only fetched for new-engine quizzes when
+        EXTRA_TIME is in the requested accommodation types. This avoids
+        unnecessary LTI API calls when only EXTRA_ATTEMPT or SPELL_CHECK
+        are requested.
         """
+        needs_participants = (
+            engine == "new"
+            and (
+                accommodation_types is None
+                or AccommodationType.EXTRA_TIME in accommodation_types
+            )
+        )
+
         participants: list[Participant] = []
-        if engine == "new":
+        if needs_participants:
             participants = await self.repo.list_participants(
                 course_id=course_id,
                 quiz_id=quiz_id,
@@ -309,6 +350,7 @@ class AccommodationService:
             course_id=request.course_id,
             quiz_id=request.quiz_id,
             engine=request.engine,
+            accommodation_types=[request.accommodation_type],
         )
         return self._audit_accommodation_with_quiz_context(
             ctx=ctx,
@@ -322,13 +364,16 @@ class AccommodationService:
         quiz_id: int,
         engine: str,
         accommodation_types: Iterable[AccommodationType] | None = None,
-    ) -> list[AuditRow]:        
+    ) -> list[AuditRow]:
         """
         Audit all (or selected) accommodation types on a single quiz.
 
         If *accommodation_types* is None, all known types are evaluated.
         Spell-check is automatically excluded for classic quizzes since
         the classic engine does not expose per-item configuration.
+
+        The context loader is passed the requested types so it can skip
+        the LTI participants call when EXTRA_TIME is not requested.
         """
         if accommodation_types is None:
             requested = [
@@ -349,6 +394,7 @@ class AccommodationService:
             course_id=course_id,
             quiz_id=quiz_id,
             engine=engine,
+            accommodation_types=requested,
         )
 
         rows: list[AuditRow] = []
@@ -408,14 +454,20 @@ class AccommodationService:
         """
         Build per-user audit rows for a given accommodation type.
 
-        For new-engine quizzes, iterates over participants (since they
-        carry the accommodation data). For classic quizzes, iterates
-        over submissions instead.
+        Routing logic:
+          - EXTRA_TIME + new:     iterate participants (LTI data)
+          - EXTRA_ATTEMPT + new:  iterate submissions (Canvas API data)
+          - anything + classic:   iterate submissions
+
+        This means EXTRA_ATTEMPT rows are always generated from
+        submissions regardless of whether the LTI client is available.
+        EXTRA_TIME rows for new quizzes are only generated when
+        participants were loaded (i.e., LTI client is present).
         """
         rows: list[AuditRow] = []
 
-        # New engine: iterate over participants and match submissions
-        if ctx.engine == "new":
+        # --- New engine, EXTRA_TIME: source is participants ---
+        if ctx.engine == "new" and accommodation_type == AccommodationType.EXTRA_TIME:
             for participant in ctx.participants:
                 submission = self._match_submission(
                     engine=ctx.engine,
@@ -450,10 +502,10 @@ class AccommodationService:
                         completed=completed,
                     )
                 )
-
             return rows
 
-        # Classic engine: iterate over submissions
+        # --- All other cases: source is submissions ---
+        # Covers: EXTRA_ATTEMPT (both engines), EXTRA_TIME (classic)
         for submission in ctx.submissions:
             eval_ctx = self._build_evaluation_context(
                 engine=ctx.engine,
@@ -601,7 +653,8 @@ class AccommodationService:
           - timer_multiplier is enabled with a value > 1 (e.g., 1.5x)
           - extra_time is enabled with a positive seconds value
 
-        These are set at the enrollment level in the New Quizzes API.
+        These are set at the enrollment level in the New Quizzes API
+        and are only available via the LTI participants endpoint.
         """
         participant = ctx.participant
         if participant is None:
@@ -643,9 +696,10 @@ class AccommodationService:
         """
         Evaluate extra attempts for either engine.
 
-        Both engines store extra_attempts on the submission. A positive
-        value means the student was given additional attempts beyond the
-        quiz default.
+        Both engines store extra_attempts on the submission object.
+        A positive value means the student was given additional attempts
+        beyond the quiz default. This evaluator is used for both classic
+        and new quizzes since the data source is always the submission.
         """
         submission = ctx.submission
         if submission is None:
