@@ -12,8 +12,11 @@ Audit a single course, classic engine only:
 Audit a specific quiz, extra time only:
     python main.py audit --quiz 48379 --engine new --types extra_time
 
-Save to a custom path with debug logging:
-    python main.py audit --term 117 --output ~/reports/sp26.xlsx --debug
+Force a cache refresh for quizzes before auditing:
+    python main.py audit --term 117 --refresh-entity quizzes
+
+Inspect cache stats without running an audit:
+    python main.py cache-stats
 
 Scope flags are mutually exclusive — supply exactly one of
 --term, --course, or --quiz.
@@ -28,6 +31,7 @@ from pathlib import Path
 import click
 import httpx
 
+from audit.cache.persistent import CacheEntity, PersistentCache
 from audit.cache.runtime import RequestCache
 from audit.clients.canvas_client import CanvasClient
 from audit.config import settings
@@ -49,17 +53,23 @@ _TYPE_MAP: dict[str, AccommodationType] = {
     "spell_check":   AccommodationType.SPELL_CHECK,
 }
 
+_ENTITY_MAP: dict[str, CacheEntity] = {
+    "terms":   CacheEntity.TERM,
+    "courses": CacheEntity.COURSE,
+    "quizzes": CacheEntity.QUIZ,
+    "users":   CacheEntity.USER,
+}
+
 _ALL_ENGINES = ["new", "classic"]
+_CACHE_DIR = Path(".cache")
 
 
 def _default_output_path() -> Path:
-    """Generate a timestamped default output filename."""
     ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     return Path(f"audit_{ts}.xlsx")
 
 
 def _fmt_elapsed(seconds: float) -> str:
-    """Format elapsed seconds as a human-readable string, e.g. '2m 14s' or '38s'."""
     seconds = int(seconds)
     if seconds >= 60:
         return f"{seconds // 60}m {seconds % 60}s"
@@ -74,30 +84,24 @@ async def _run_audit(
     types: list[AccommodationType],
     output_path: Path,
     show_progress: bool,
+    persistent_cache: PersistentCache,
 ) -> None:
-    """
-    Build the full dependency chain and run the audit.
-
-    When multiple engines are requested they are fetched concurrently
-    via asyncio.gather and merged into a single result set before writing.
-
-    Parameters
-    ----------
-    show_progress:
-        When True, tqdm progress bars are shown for course completion
-        (term-scoped audits) and the Excel write step.
-    """
+    """Build the full dependency chain and run the audit."""
     audit_start = time.perf_counter()
-    cache = RequestCache()
+    runtime_cache = RequestCache()
 
     async with httpx.AsyncClient() as http:
         client = CanvasClient(
             base_url=settings.canvas_base_url,
             token=settings.canvas_token,
             http=http,
-            cache=cache,
+            cache=runtime_cache,
         )
-        repo = CanvasRepo(client, account_id=settings.canvas_account_id)
+        repo = CanvasRepo(
+            client,
+            account_id=settings.canvas_account_id,
+            persistent_cache=persistent_cache,
+        )
         svc = AccommodationService(repo)
 
         tasks = []
@@ -126,23 +130,21 @@ async def _run_audit(
         results = await asyncio.gather(*tasks)
         rows = [row for engine_rows in results for row in engine_rows]
 
-    audit_elapsed = time.perf_counter() - audit_start
-    audit_elapsed_str = _fmt_elapsed(audit_elapsed)
-
-    cache.log_stats()
+    audit_elapsed = _fmt_elapsed(time.perf_counter() - audit_start)
+    runtime_cache.log_stats()
 
     summary = (
         f"Audit complete — {len(rows):,} rows across "
-        f"{len(engines)} engine(s) in {audit_elapsed_str}."
+        f"{len(engines)} engine(s) in {audit_elapsed}."
     )
     click.echo(summary)
     logger.info(summary)
 
     write_start = time.perf_counter()
     write_xlsx(rows, output_path, show_progress=show_progress)
-    write_elapsed_str = _fmt_elapsed(time.perf_counter() - write_start)
+    write_elapsed = _fmt_elapsed(time.perf_counter() - write_start)
 
-    write_summary = f"Report written to {output_path} in {write_elapsed_str}."
+    write_summary = f"Report written to {output_path} in {write_elapsed}."
     click.echo(write_summary)
     logger.info(write_summary)
 
@@ -157,34 +159,20 @@ def cli() -> None:
 
 
 @cli.command()
-@click.option(
-    "--term",   "term_id",
-    type=int, default=None,
-    help="Canvas enrollment term ID.",
-)
-@click.option(
-    "--course", "course_id",
-    type=int, default=None,
-    help="Canvas course ID.",
-)
-@click.option(
-    "--quiz",   "quiz_id",
-    type=int, default=None,
-    help="Canvas quiz or assignment ID.",
-)
+@click.option("--term",   "term_id",   type=int, default=None, help="Canvas enrollment term ID.")
+@click.option("--course", "course_id", type=int, default=None, help="Canvas course ID.")
+@click.option("--quiz",   "quiz_id",   type=int, default=None, help="Canvas quiz or assignment ID.")
 @click.option(
     "--engine",
     type=click.Choice(["new", "classic", "all"], case_sensitive=False),
-    default="all",
-    show_default=True,
+    default="all", show_default=True,
     help="Quiz engine to audit. 'all' runs both concurrently.",
 )
 @click.option(
     "--types",
     multiple=True,
     type=click.Choice(list(_TYPE_MAP.keys()), case_sensitive=False),
-    default=list(_TYPE_MAP.keys()),
-    show_default=True,
+    default=list(_TYPE_MAP.keys()), show_default=True,
     help="Accommodation type(s) to evaluate. Repeatable.",
 )
 @click.option(
@@ -194,17 +182,14 @@ def cli() -> None:
     help="Output .xlsx path. Defaults to audit_<timestamp>.xlsx.",
 )
 @click.option(
-    "--debug",
-    is_flag=True,
-    default=False,
-    help="Enable DEBUG log level.",
+    "--refresh-entity",
+    "refresh_entity",
+    type=click.Choice(list(_ENTITY_MAP.keys()), case_sensitive=False),
+    default=None,
+    help="Invalidate a cache entity type before running (forces re-fetch).",
 )
-@click.option(
-    "--no-progress",
-    is_flag=True,
-    default=False,
-    help="Disable progress bars (useful for non-interactive environments).",
-)
+@click.option("--debug",       is_flag=True, default=False, help="Enable DEBUG log level.")
+@click.option("--no-progress", is_flag=True, default=False, help="Disable progress bars.")
 def audit(
     term_id: int | None,
     course_id: int | None,
@@ -212,6 +197,7 @@ def audit(
     engine: str,
     types: tuple[str, ...],
     output: Path | None,
+    refresh_entity: str | None,
     debug: bool,
     no_progress: bool,
 ) -> None:
@@ -225,43 +211,38 @@ def audit(
         python main.py audit --term 117
         python main.py audit --course 12977 --engine classic
         python main.py audit --quiz 48379 --engine new --types extra_time
-        python main.py audit --term 117 --types extra_time extra_attempt
+        python main.py audit --term 117 --refresh-entity quizzes
     """
-    # --- Logging ---
     log_level = logging.DEBUG if debug else logging.WARNING
     log_file = setup_logging(level=log_level)
     if debug:
         click.echo(f"Debug logging → {log_file}")
 
-    # --- Validate scope: exactly one required ---
+    # --- Validate scope ---
     scope_args = {"term": term_id, "course": course_id, "quiz": quiz_id}
     provided = {k: v for k, v in scope_args.items() if v is not None}
-
     if len(provided) == 0:
-        raise click.UsageError(
-            "Supply exactly one scope flag: --term, --course, or --quiz."
-        )
+        raise click.UsageError("Supply exactly one scope flag: --term, --course, or --quiz.")
     if len(provided) > 1:
         raise click.UsageError(
-            f"Supply exactly one scope flag — got: "
-            f"{', '.join(f'--{k}' for k in provided)}."
+            f"Supply exactly one scope flag — got: {', '.join(f'--{k}' for k in provided)}."
         )
-
     scope, scope_id = next(iter(provided.items()))
 
-    # --- Resolve engines ---
+    # --- Persistent cache ---
+    persistent_cache = PersistentCache(_CACHE_DIR)
+
+    if refresh_entity is not None:
+        entity = _ENTITY_MAP[refresh_entity]
+        count = persistent_cache.invalidate(entity)
+        click.echo(f"Cache invalidated: {refresh_entity} ({count} entries reset).")
+
+    # --- Resolve options ---
     engines = _ALL_ENGINES if engine == "all" else [engine]
-
-    # --- Resolve accommodation types ---
     accommodation_types = [_TYPE_MAP[t] for t in (types or _TYPE_MAP.keys())]
-
-    # --- Resolve output path ---
     output_path = output or _default_output_path()
-
-    # --- Progress bars on by default; suppressed by --no-progress ---
     show_progress = not no_progress
 
-    # --- Announce ---
     click.echo(
         f"Auditing {scope}={scope_id} | "
         f"engine={engine} | "
@@ -277,8 +258,28 @@ def audit(
             types=accommodation_types,
             output_path=output_path,
             show_progress=show_progress,
+            persistent_cache=persistent_cache,
         )
     )
+
+
+@cli.command("cache-stats")
+def cache_stats() -> None:
+    """Show persistent cache statistics (entry counts, TTLs, expired entries)."""
+    cache = PersistentCache(_CACHE_DIR)
+    stats = cache.stats()
+
+    click.echo(f"\nCache directory: {_CACHE_DIR.resolve()}\n")
+    click.echo(f"{'Entity':<10} {'Total':>7} {'Valid':>7} {'Expired':>9} {'TTL':>10}")
+    click.echo("-" * 48)
+    for entity, info in stats.items():
+        ttl_hours = info["ttl_hours"]
+        ttl_str = f"{int(ttl_hours)}h" if ttl_hours < 24 else f"{int(ttl_hours // 24)}d"
+        click.echo(
+            f"{entity:<10} {info['total']:>7} {info['valid']:>7} "
+            f"{info['expired']:>9} {ttl_str:>10}"
+        )
+    click.echo()
 
 
 if __name__ == "__main__":
