@@ -1,0 +1,8 @@
+httpx
+playwright
+python-dotenv
+openpyxl
+click
+tqdm
+pandas
+xlsxwriter

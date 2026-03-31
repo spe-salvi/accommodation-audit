@@ -59,7 +59,7 @@ logger = logging.getLogger(__name__)
 # Defaults
 # ---------------------------------------------------------------------------
 
-_DEFAULT_MAX_ATTEMPTS = 3   # total attempts (1 original + 2 retries)
+_DEFAULT_MAX_ATTEMPTS = 5   # 1 original + 4 retries — Canvas 429s need room
 _DEFAULT_BASE_DELAY = 1.0   # seconds — starting point for backoff
 _DEFAULT_CAP = 15.0         # seconds — maximum delay between retries
 
@@ -94,7 +94,7 @@ def retryable(
     Parameters
     ----------
     max_attempts:
-        Total number of attempts (including the first). Defaults to 3.
+        Total number of attempts (including the first). Defaults to 5.
     base_delay:
         Base delay in seconds for the backoff calculation. Defaults to 1.0.
     cap:

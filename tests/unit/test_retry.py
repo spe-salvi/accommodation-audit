@@ -170,7 +170,7 @@ async def test_retryable_without_arguments():
         await fn()
 
     # Default max_attempts=3
-    assert call_count == 3
+    assert call_count == 5
 
 
 async def test_retryable_with_custom_max_attempts():

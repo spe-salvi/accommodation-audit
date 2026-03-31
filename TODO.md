@@ -24,47 +24,47 @@
 
 ## Phase 2 — From Canvas API
 
-- [ ] One Endpoint
-- [ ] Broaden Endpoints to all Models
-  - [ ] Submissions
-  - [ ] Users
-  - [ ] Quizzes
-    - [ ] New
-    - [ ] Classic
-  - [ ] New Quiz Items
-  - [ ] Courses
-  - [ ] Terms
-- [ ] Error Handling
+- [X] One Endpoint
+- [X] Broaden Endpoints to all Models
+  - [X] Submissions
+  - [X] Users
+  - [X] Quizzes
+    - [X] New
+    - [X] Classic
+  - [X] New Quiz Items
+  - [X] Courses
+  - [X] Terms
+- [X] Error Handling
 
 ## Phase 3 — From LTI API
 
-- [ ] Grab Token, Create Session
-- [ ] Authenticated Call
-- [ ] Token/Session Reuse
-- [ ] Refresh on Expiry
-- [ ] Error Handling
+- [X] Grab Token, Create Session
+- [X] Authenticated Call
+- [X] Token/Session Reuse
+- [X] Refresh on Expiry
+- [X] Error Handling
 
 ## Phase 4 — Stability
 
-- [ ] Clean Data Access Layer Boundaries
-- [ ] Finalize Business Layer
-- [ ] Confirm Normalization of Models
-- [ ] Logging
-  - [ ] Models
-  - [ ] Data Access
-  - [ ] Business
-- [ ] Retry Calls
-- [ ] Exceptions
-- [ ] Basic Testing
-  - [ ] Unit Tests - Business Layer
-  - [ ] Integration - Models and Data Access
-  - [ ] Small End-to-End Test(s)
+- [X] Clean Data Access Layer Boundaries
+- [X] Finalize Business Layer
+- [X] Confirm Normalization of Models
+- [X] Logging
+  - [X] Models
+  - [X] Data Access
+  - [X] Business
+- [X] Retry Calls
+- [X] Exceptions
+- [X] Basic Testing
+  - [X] Unit Tests - Business Layer
+  - [X] Integration - Models and Data Access
+  - [X] Small End-to-End Test(s)
 
 ## Phase 5 — Optimization
 
 - Phase 5.1 - Runtime Cache
 
-- [ ]
+- [X]
 
 - Phase 5.2 - Persistent Cache (TTL)
 
@@ -81,8 +81,8 @@
 
 - Phase 5.4 - Async
 
-- [ ] Bounded Concurrency
-- [ ] Research/Implement Semaphores
+- [X] Bounded Concurrency
+- [X] Research/Implement Semaphores
 
 - Phase 5.5 - Dynamic Rate Adaptation
 

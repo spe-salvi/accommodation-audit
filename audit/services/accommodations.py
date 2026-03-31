@@ -18,15 +18,20 @@ The service is organized into three concerns:
 The service depends on ``AccommodationRepo`` (a protocol), so it works
 identically whether the data comes from the Canvas API or local JSON.
 
-Concurrency
------------
-``audit_course`` and ``audit_term`` run per-quiz work concurrently via
-``asyncio.gather``. A shared ``asyncio.Semaphore`` bounds the number of
-quizzes processed simultaneously across the entire run — including when
-``audit_term`` fans out across multiple courses. The default limit is 10.
+Concurrency model
+-----------------
+``audit_term`` fans out across courses concurrently via ``asyncio.gather``,
+gated by a shared ``asyncio.Semaphore``. This limits how many courses are
+active simultaneously — bounding the total number of in-flight Canvas API
+requests and preventing rate limit exhaustion.
 
-Pass a semaphore explicitly to share it across service instances, or
-let the service create its own (useful for single-course audits).
+Within each course, quizzes are processed *sequentially*. This is the
+right tradeoff: the per-course parallelism is where the speedup matters
+(hundreds of courses), while per-quiz parallelism within a single course
+adds concurrency that Canvas's rate limits can't absorb.
+
+The semaphore defaults to 10 concurrent courses. Pass a smaller value
+(e.g. 3) if you continue to hit 429s on large terms.
 
 Data source routing
 -------------------
@@ -62,8 +67,7 @@ class AccommodationResult:
     The outcome of evaluating a single accommodation for a single user.
 
     ``has_accommodation`` is the boolean verdict; ``details`` carries
-    the raw values that led to the decision (e.g., extra_time_in_seconds)
-    for inclusion in audit output.
+    the raw values that led to the decision for inclusion in audit output.
     """
     has_accommodation: bool
     details: dict
@@ -97,9 +101,8 @@ class QuizAuditContext:
 
     Note on participants:
         For new-engine quizzes, participants may be empty if the LTI
-        client is not available. In that case, EXTRA_TIME rows will not
-        be generated. EXTRA_ATTEMPT rows are always generated from
-        submissions regardless of participant availability.
+        client is not available. EXTRA_ATTEMPT rows are always generated
+        from submissions regardless of participant availability.
     """
     course_id: int
     quiz_id: int
@@ -124,11 +127,9 @@ class AccommodationService:
     repo:
         Data access layer. Works with both ``CanvasRepo`` and ``JsonRepo``.
     semaphore:
-        Optional shared semaphore for bounding concurrent quiz processing.
-        When None, a new semaphore with ``_DEFAULT_CONCURRENCY`` slots is
-        created. Pass a shared instance when running multiple service calls
-        in parallel (e.g., from a term-level audit across many courses) to
-        enforce a global concurrency limit.
+        Optional shared semaphore bounding how many courses are processed
+        concurrently in ``audit_term``. When None, a new semaphore with
+        ``_DEFAULT_CONCURRENCY`` slots is created.
     """
 
     def __init__(
@@ -177,9 +178,6 @@ class AccommodationService:
     ) -> EvaluationContext:
         """
         Fetch only the data needed for a specific accommodation evaluation.
-
-        This is the single-user path — loads just the participant,
-        submission, or items needed for the requested accommodation type.
 
         EXTRA_ATTEMPT always reads from submissions regardless of engine.
         EXTRA_TIME reads from participants for new quizzes (LTI required)
@@ -240,9 +238,7 @@ class AccommodationService:
         Eagerly load all data for a quiz into a single context object.
 
         Participants are only fetched for new-engine quizzes when
-        EXTRA_TIME is in the requested accommodation types, avoiding
-        unnecessary LTI API calls when only EXTRA_ATTEMPT or SPELL_CHECK
-        are requested.
+        EXTRA_TIME is in the requested accommodation types.
         """
         needs_participants = (
             engine == "new"
@@ -325,8 +321,7 @@ class AccommodationService:
         """
         Evaluate a single accommodation for a single user.
 
-        Loads just the data needed and runs the evaluator. Useful for
-        spot-checking individual students.
+        Loads just the data needed and runs the evaluator.
         """
         ctx = await self._load_evaluation_context(
             course_id=course_id,
@@ -369,8 +364,7 @@ class AccommodationService:
         Audit all (or selected) accommodation types on a single quiz.
 
         If *accommodation_types* is None, all known types are evaluated.
-        Spell-check is automatically excluded for classic quizzes since
-        the classic engine does not expose per-item configuration.
+        Spell-check is automatically excluded for classic quizzes.
         """
         if accommodation_types is None:
             requested = [
@@ -404,30 +398,6 @@ class AccommodationService:
             )
         return rows
 
-    async def _audit_quiz_with_semaphore(
-        self,
-        *,
-        course_id: int,
-        quiz_id: int,
-        engine: str,
-        accommodation_types: list[AccommodationType] | None,
-    ) -> list[AuditRow]:
-        """
-        Acquire the semaphore then run audit_quiz.
-
-        This is the unit of work that gets passed to asyncio.gather in
-        audit_course and audit_term. The semaphore ensures at most
-        _DEFAULT_CONCURRENCY quizzes are processed at once globally,
-        regardless of how many courses are running in parallel.
-        """
-        async with self._semaphore:
-            return await self.audit_quiz(
-                course_id=course_id,
-                quiz_id=quiz_id,
-                engine=engine,
-                accommodation_types=accommodation_types,
-            )
-
     async def audit_course(
         self,
         *,
@@ -436,30 +406,51 @@ class AccommodationService:
         accommodation_types: Iterable[AccommodationType] | None = None,
     ) -> list[AuditRow]:
         """
-        Audit all quizzes in a course concurrently.
+        Audit all quizzes in a course sequentially.
 
-        Quizzes are processed in parallel, bounded by the shared semaphore.
-        Results are gathered and flattened into a single list.
+        Quizzes within a course are processed one at a time. Concurrency
+        is applied at the course level (in audit_term) rather than the
+        quiz level, keeping total in-flight Canvas API requests bounded.
         """
         quizzes = await self.repo.list_quizzes(
             course_id=course_id,
             engine=engine,
         )
 
+        rows: list[AuditRow] = []
         types = list(accommodation_types) if accommodation_types is not None else None
 
-        tasks = [
-            self._audit_quiz_with_semaphore(
+        for quiz in quizzes:
+            quiz_rows = await self.audit_quiz(
                 course_id=course_id,
                 quiz_id=quiz.quiz_id,
                 engine=engine,
                 accommodation_types=types,
             )
-            for quiz in quizzes
-        ]
+            rows.extend(quiz_rows)
 
-        results = await asyncio.gather(*tasks)
-        return [row for quiz_rows in results for row in quiz_rows]
+        return rows
+
+    async def _audit_course_with_semaphore(
+        self,
+        *,
+        course_id: int,
+        engine: str,
+        accommodation_types: list[AccommodationType] | None,
+    ) -> list[AuditRow]:
+        """
+        Acquire the semaphore then run audit_course.
+
+        This is the unit of work passed to asyncio.gather in audit_term.
+        The semaphore ensures at most _DEFAULT_CONCURRENCY courses are
+        active simultaneously, bounding total Canvas API requests.
+        """
+        async with self._semaphore:
+            return await self.audit_course(
+                course_id=course_id,
+                engine=engine,
+                accommodation_types=accommodation_types,
+            )
 
     async def audit_term(
         self,
@@ -467,13 +458,19 @@ class AccommodationService:
         term_id: int,
         engine: str,
         accommodation_types: Iterable[AccommodationType] | None = None,
+        show_progress: bool = False,
     ) -> list[AuditRow]:
         """
         Audit all courses in a term concurrently.
 
-        Courses are fetched sequentially (there are few of them), but
-        the per-quiz work within each course runs concurrently, all
-        sharing the same global semaphore.
+        Courses are processed in parallel, each gated by the shared
+        semaphore. When *show_progress* is True, a tqdm bar advances
+        as each course completes.
+
+        Parameters
+        ----------
+        show_progress:
+            If True, display a tqdm progress bar tracking course completion.
         """
         courses = await self.repo.list_courses(
             term_id=term_id,
@@ -483,7 +480,7 @@ class AccommodationService:
         types = list(accommodation_types) if accommodation_types is not None else None
 
         tasks = [
-            self.audit_course(
+            self._audit_course_with_semaphore(
                 course_id=course.course_id,
                 engine=engine,
                 accommodation_types=types,
@@ -491,7 +488,17 @@ class AccommodationService:
             for course in courses
         ]
 
-        results = await asyncio.gather(*tasks)
+        if show_progress:
+            from tqdm.asyncio import tqdm_asyncio
+            results = await tqdm_asyncio.gather(
+                *tasks,
+                desc=f"Auditing courses ({engine})",
+                unit="course",
+                total=len(courses),
+            )
+        else:
+            results = await asyncio.gather(*tasks)
+
         return [row for course_rows in results for row in course_rows]
 
     # ----------------------------
@@ -499,12 +506,7 @@ class AccommodationService:
     # ----------------------------
 
     def _build_spell_check_rows(self, *, ctx: QuizAuditContext) -> list[AuditRow]:
-        """
-        Build per-item audit rows for spell-check on essay questions.
-
-        Spell-check is a quiz-level accommodation — either enabled or
-        disabled on each essay question. Non-essay items are skipped.
-        """
+        """Build per-item audit rows for spell-check on essay questions."""
         if ctx.engine != "new":
             return []
 
@@ -520,7 +522,6 @@ class AccommodationService:
                 continue
 
             enabled = bool(item.essay_spell_check_enabled)
-
             rows.append(
                 AuditRow(
                     course_id=ctx.course_id,
@@ -530,10 +531,7 @@ class AccommodationService:
                     engine=ctx.engine,
                     accommodation_type=AccommodationType.SPELL_CHECK,
                     has_accommodation=enabled,
-                    details={
-                        "spell_check": enabled,
-                        "position": item.position,
-                    },
+                    details={"spell_check": enabled, "position": item.position},
                     completed=None,
                 )
             )
@@ -565,41 +563,32 @@ class AccommodationService:
                     submissions_by_user=ctx.submissions_by_user,
                     submissions_by_session=ctx.submissions_by_session,
                 )
-
                 eval_ctx = self._build_evaluation_context(
                     engine=ctx.engine,
                     participant=participant,
                     submission=submission,
                 )
-
                 result = self.evaluate_models(
                     accommodation_type=accommodation_type,
                     ctx=eval_ctx,
                 )
-
                 if not result.has_accommodation:
                     logger.debug(
                         "no accommodation: user_id=%d quiz_id=%d type=%s engine=new",
-                        participant.user_id,
-                        ctx.quiz_id,
-                        accommodation_type.value,
+                        participant.user_id, ctx.quiz_id, accommodation_type.value,
                     )
-
                 completed = submission.date == "past" if submission else None
-
-                rows.append(
-                    AuditRow(
-                        course_id=ctx.course_id,
-                        quiz_id=ctx.quiz_id,
-                        user_id=participant.user_id,
-                        item_id=None,
-                        engine=ctx.engine,
-                        accommodation_type=accommodation_type,
-                        has_accommodation=result.has_accommodation,
-                        details=result.details,
-                        completed=completed,
-                    )
-                )
+                rows.append(AuditRow(
+                    course_id=ctx.course_id,
+                    quiz_id=ctx.quiz_id,
+                    user_id=participant.user_id,
+                    item_id=None,
+                    engine=ctx.engine,
+                    accommodation_type=accommodation_type,
+                    has_accommodation=result.has_accommodation,
+                    details=result.details,
+                    completed=completed,
+                ))
             return rows
 
         # --- All other cases: source is submissions ---
@@ -609,34 +598,26 @@ class AccommodationService:
                 participant=None,
                 submission=submission,
             )
-
             result = self.evaluate_models(
                 accommodation_type=accommodation_type,
                 ctx=eval_ctx,
             )
-
             if not result.has_accommodation:
                 logger.debug(
                     "no accommodation: user_id=%d quiz_id=%d type=%s engine=%s",
-                    submission.user_id,
-                    ctx.quiz_id,
-                    accommodation_type.value,
-                    ctx.engine,
+                    submission.user_id, ctx.quiz_id, accommodation_type.value, ctx.engine,
                 )
-
-            rows.append(
-                AuditRow(
-                    course_id=ctx.course_id,
-                    quiz_id=ctx.quiz_id,
-                    user_id=submission.user_id,
-                    item_id=None,
-                    engine=ctx.engine,
-                    accommodation_type=accommodation_type,
-                    has_accommodation=result.has_accommodation,
-                    details=result.details,
-                    completed=submission.date == "past",
-                )
-            )
+            rows.append(AuditRow(
+                course_id=ctx.course_id,
+                quiz_id=ctx.quiz_id,
+                user_id=submission.user_id,
+                item_id=None,
+                engine=ctx.engine,
+                accommodation_type=accommodation_type,
+                has_accommodation=result.has_accommodation,
+                details=result.details,
+                completed=submission.date == "past",
+            ))
 
         return rows
 
@@ -663,12 +644,7 @@ class AccommodationService:
         submissions_by_user: dict[int, Submission],
         submissions_by_session: dict[tuple[str | None, str | None], Submission],
     ) -> Submission | None:
-        """
-        Find the submission that belongs to a given participant.
-
-        For new-engine quizzes, tries session-based matching first then
-        falls back to user_id. For classic quizzes, matches by user_id only.
-        """
+        """Find the submission that belongs to a given participant."""
         if engine == "new":
             submission = submissions_by_session.get(
                 (participant.participant_session_id, participant.quiz_session_id)
@@ -676,10 +652,8 @@ class AccommodationService:
             if submission is not None:
                 return submission
             return submissions_by_user.get(participant.user_id)
-
         if engine == "classic":
             return submissions_by_user.get(participant.user_id)
-
         return None
 
     # ----------------------------
@@ -691,25 +665,20 @@ class AccommodationService:
         participant = ctx.participant
         if participant is None:
             return AccommodationResult(False, {})
-
         has = (
             (participant.timer_multiplier_enabled and (participant.timer_multiplier_value or 0) > 1)
             or (participant.extra_time_enabled and (participant.extra_time_in_seconds or 0) > 0)
         )
-        return AccommodationResult(
-            has,
-            {
-                "timer_multiplier_value": participant.timer_multiplier_value,
-                "extra_time_in_seconds": participant.extra_time_in_seconds,
-            },
-        )
+        return AccommodationResult(has, {
+            "timer_multiplier_value": participant.timer_multiplier_value,
+            "extra_time_in_seconds": participant.extra_time_in_seconds,
+        })
 
     def _evaluate_extra_time_classic(self, ctx: EvaluationContext) -> AccommodationResult:
         """Extra time for classic quizzes — reads from submission.extra_time."""
         submission = ctx.submission
         if submission is None:
             return AccommodationResult(False, {})
-
         has = (submission.extra_time or 0) > 0
         return AccommodationResult(has, {"extra_time": submission.extra_time})
 
@@ -718,6 +687,5 @@ class AccommodationService:
         submission = ctx.submission
         if submission is None:
             return AccommodationResult(False, {})
-
         has = (submission.extra_attempts or 0) > 0
         return AccommodationResult(has, {"extra_attempts": submission.extra_attempts})
