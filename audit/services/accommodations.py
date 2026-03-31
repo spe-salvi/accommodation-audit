@@ -39,12 +39,15 @@ EXTRA_TIME for new quizzes is the only type that requires the LTI
 participant endpoint.
 """
 
+import logging
 from dataclasses import dataclass
 from typing import Callable, Iterable
 
 from audit.models.audit import AuditRow, AuditRequest
 from audit.models.canvas import Participant, Submission, NewQuizItem
 from audit.repos.base import AccommodationRepo, AccommodationType
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -422,6 +425,11 @@ class AccommodationService:
 
         for item in ctx.items:
             if item.interaction_type_slug != "essay":
+                logger.debug(
+                    "spell_check: skipping non-essay item item_id=%s quiz_id=%d",
+                    item.item_id,
+                    ctx.quiz_id,
+                )
                 continue
 
             enabled = bool(item.essay_spell_check_enabled)
@@ -487,6 +495,14 @@ class AccommodationService:
                     ctx=eval_ctx,
                 )
 
+                if not result.has_accommodation:
+                    logger.debug(
+                        "no accommodation: user_id=%d quiz_id=%d type=%s engine=new",
+                        participant.user_id,
+                        ctx.quiz_id,
+                        accommodation_type.value,
+                    )
+
                 completed = submission.date == "past" if submission else None
 
                 rows.append(
@@ -517,6 +533,15 @@ class AccommodationService:
                 accommodation_type=accommodation_type,
                 ctx=eval_ctx,
             )
+
+            if not result.has_accommodation:
+                logger.debug(
+                    "no accommodation: user_id=%d quiz_id=%d type=%s engine=%s",
+                    submission.user_id,
+                    ctx.quiz_id,
+                    accommodation_type.value,
+                    ctx.engine,
+                )
 
             rows.append(
                 AuditRow(

@@ -125,20 +125,24 @@ accommodation-audit/
 │   │   ├── accommodations.py       #   Core evaluation and audit composition
 │   │   └── tasks.py                #   Task definitions for audit operations
 │   ├── config.py                   # Environment-based settings
-│   └── main.py                     # CLI entry point
+│   ├── .env                        # Local environment config (not committed)
+│   └── .example.env                # Example file to set environment variables
 ├── dumps/                          # Sample Canvas API response data
 │   ├── classic_quizzes.json
 │   ├── classic_submissions.json
 │   ├── courses.json
-│   ├── enrollments.json
 │   ├── new_items.json
 │   ├── new_quizzes.json
 │   ├── new_submissions.json
+<<<<<<< HEAD
 │   ├── participant.json
 │   ├── participants.json
 │   └── users.json
 ├── scripts/
 │   └── test_lti_session.py         # Manual verification script for LTI session flow
+=======
+│   └── participants.json
+>>>>>>> d221f07801700e5ee2fb36db4cc3c639ac4a64bf
 ├── tests/                          # Test suite
 │   ├── integration/                #   Integration tests (live Canvas API)
 │   │   ├── conftest.py
@@ -146,12 +150,9 @@ accommodation-audit/
 │   └── unit/                       #   Unit tests (business logic, JSON fixtures)
 │       ├── conftest.py
 │       ├── test_audit_classic.py
-│       ├── test_audit_logic.py
 │       ├── test_audit_new.py
-│       ├── test_cache.py
-│       ├── test_planner.py
 │       └── test_repo_catalog.py
-├── .env                            # Local environment config (not committed)
+├── main.py                         # CLI entry point
 ├── .gitignore
 ├── LICENSE
 ├── pyproject.toml

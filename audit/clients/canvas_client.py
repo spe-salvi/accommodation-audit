@@ -125,9 +125,11 @@ class CanvasClient:
         Wraps httpx exceptions in domain exceptions after all retries
         are exhausted so callers never need to import httpx.
         """
+        logger.debug("GET %s", url)
         try:
             response = await self._http.get(url, headers=self._headers, params=params)
             response.raise_for_status()
+            logger.debug("GET %s → %d", url, response.status_code)
             return response
         except httpx.HTTPStatusError as exc:
             status = exc.response.status_code
@@ -135,12 +137,12 @@ class CanvasClient:
                 retry_after_raw = exc.response.headers.get("retry-after")
                 retry_after = float(retry_after_raw) if retry_after_raw else None
                 raise RateLimitError(
-                    f"Canvas rate limit exceeded",
+                    "Canvas rate limit exceeded",
                     url=url,
                     retry_after=retry_after,
                 ) from exc
             raise CanvasApiError(
-                f"Canvas API request failed",
+                "Canvas API request failed",
                 status_code=status,
                 url=url,
             ) from exc
