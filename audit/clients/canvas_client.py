@@ -3,17 +3,25 @@ Canvas LMS async HTTP client.
 
 Provides authenticated access to the Canvas REST API with automatic
 pagination handling (RFC 5988 Link headers), response unwrapping,
-and retry on transient failures.
+retry on transient failures, and optional in-memory response caching.
 
 This module owns transport concerns only. Domain exceptions from
 ``audit.exceptions`` are raised so callers never need to import httpx.
+
+Caching
+-------
+An optional ``RequestCache`` can be injected at construction. When
+present, successful responses are stored by (url, params) and served
+from cache on subsequent identical requests. This eliminates redundant
+API calls within a single audit run — useful when multiple quizzes in
+a course share submission or participant data.
 
 Retry behaviour
 ---------------
 Each individual HTTP request is retried automatically on transient
 failures (429, 5xx, network errors) using exponential backoff with
-full jitter. Retries are applied per-request so that only the failing
-page of a paginated sequence is retried, not the whole collection.
+full jitter. Cache hits bypass the network entirely and are never
+retried.
 
 Exceptions raised
 -----------------
@@ -22,11 +30,13 @@ CanvasApiError    Any other non-2xx HTTP response after retries
 AuditError        Wraps unexpected transport-level failures
 
 Usage:
+    cache = RequestCache()
     async with httpx.AsyncClient() as http:
         client = CanvasClient(
             base_url="https://canvas.university.edu",
             token="your_api_token",
             http=http,
+            cache=cache,
         )
         courses = await client.get_paginated_json("/api/v1/courses")
 """
@@ -36,6 +46,7 @@ import logging
 
 import httpx
 
+from audit.cache.runtime import RequestCache
 from audit.clients.retry import retryable
 from audit.exceptions import AuditError, CanvasApiError, RateLimitError
 
@@ -51,13 +62,34 @@ class CanvasClient:
       - Single-object GET  (get_json)
       - Paginated GET      (get_paginated_json) via Link-header traversal
       - Automatic retry on transient failures via ``@retryable``
+      - Optional response caching via ``RequestCache``
       - Domain exception wrapping so callers stay httpx-free
+
+    Parameters
+    ----------
+    base_url:
+        Canvas instance base URL.
+    token:
+        Canvas API Bearer token.
+    http:
+        Shared httpx async client.
+    cache:
+        Optional request cache. When provided, identical requests within
+        a run are served from memory without hitting the network.
     """
 
-    def __init__(self, *, base_url: str, token: str, http: httpx.AsyncClient) -> None:
+    def __init__(
+        self,
+        *,
+        base_url: str,
+        token: str,
+        http: httpx.AsyncClient,
+        cache: RequestCache | None = None,
+    ) -> None:
         self._base_url = base_url.rstrip("/")
         self._headers = {"Authorization": f"Bearer {token}"}
         self._http = http
+        self._cache = cache
 
     # ------------------------------------------------------------------
     # Public interface
@@ -74,14 +106,30 @@ class CanvasClient:
         CanvasApiError
             Any other non-2xx response after retries.
         """
-        response = await self._get(path, params=params)
-        return response.json()
+        url = f"{self._base_url}{path}"
+
+        if self._cache is not None:
+            cached = self._cache.get(url, params)
+            if cached is not None:
+                return cached
+
+        response = await self._fetch(url, params=params)
+        data = response.json()
+
+        if self._cache is not None:
+            self._cache.set(url, params, data)
+
+        return data
 
     async def get_paginated_json(
         self, path: str, *, params: dict | None = None
     ) -> list:
         """
         Fetch all pages for a paginated Canvas endpoint.
+
+        The full result list (all pages combined) is cached as a single
+        entry keyed by the first page URL + params. On a cache hit the
+        entire result is returned immediately without any network calls.
 
         Follows RFC 5988 Link headers until no next page remains.
         Each page request is independently retried on transient failures.
@@ -95,14 +143,26 @@ class CanvasClient:
         CanvasApiError
             Any other non-2xx response after retries.
         """
+        first_url = f"{self._base_url}{path}"
+
+        # Check cache before making any network calls.
+        if self._cache is not None:
+            cached = self._cache.get(first_url, params)
+            if cached is not None:
+                return cached
+
         results: list = []
-        url: str | None = f"{self._base_url}{path}"
+        url: str | None = first_url
 
         while url:
             response = await self._fetch(url, params=params)
             results.extend(self._unwrap(response.json()))
             params = None
             url = self._next_link(response.headers.get("link", ""))
+
+        # Cache the full combined result under the first URL.
+        if self._cache is not None:
+            self._cache.set(first_url, params, results)
 
         return results
 

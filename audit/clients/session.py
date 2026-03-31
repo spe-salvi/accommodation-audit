@@ -211,7 +211,8 @@ async def _run_playwright(
     access_token: str | None = None
 
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=False)
+        # Login is fully automated via env vars — no interactive steps needed.
+        browser = await p.chromium.launch(headless=True)
         context = await browser.new_context()
 
         # --- Step 1: Login via Canvas backdoor ---

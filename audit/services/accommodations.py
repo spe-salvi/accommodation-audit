@@ -18,10 +18,18 @@ The service is organized into three concerns:
 The service depends on ``AccommodationRepo`` (a protocol), so it works
 identically whether the data comes from the Canvas API or local JSON.
 
+Concurrency
+-----------
+``audit_course`` and ``audit_term`` run per-quiz work concurrently via
+``asyncio.gather``. A shared ``asyncio.Semaphore`` bounds the number of
+quizzes processed simultaneously across the entire run — including when
+``audit_term`` fans out across multiple courses. The default limit is 10.
+
+Pass a semaphore explicitly to share it across service instances, or
+let the service create its own (useful for single-course audits).
+
 Data source routing
 -------------------
-Accommodation data lives in different places depending on engine and type:
-
   +-----------------+---------+--------------------------------------------+
   | Type            | Engine  | Source                                     |
   +-----------------+---------+--------------------------------------------+
@@ -32,13 +40,9 @@ Accommodation data lives in different places depending on engine and type:
   | SPELL_CHECK     | new     | Quiz item (Canvas API — interaction_data)  |
   | SPELL_CHECK     | classic | N/A (classic engine has no per-item config)|
   +-----------------+---------+--------------------------------------------+
-
-This routing means EXTRA_ATTEMPT audits for new quizzes never require
-the LTI client — they always work with the standard Canvas API.
-EXTRA_TIME for new quizzes is the only type that requires the LTI
-participant endpoint.
 """
 
+import asyncio
 import logging
 from dataclasses import dataclass
 from typing import Callable, Iterable
@@ -48,6 +52,8 @@ from audit.models.canvas import Participant, Submission, NewQuizItem
 from audit.repos.base import AccommodationRepo, AccommodationType
 
 logger = logging.getLogger(__name__)
+
+_DEFAULT_CONCURRENCY = 10
 
 
 @dataclass(frozen=True)
@@ -86,12 +92,8 @@ class QuizAuditContext:
     Pre-loaded data for auditing all users/items on a single quiz.
 
     Eagerly loading all participants, submissions, and items upfront
-    (rather than fetching per-user) minimizes API calls at the cost of
-    memory. This is the right tradeoff when auditing quizzes with
-    hundreds of students.
-
-    The ``submissions_by_user`` and ``submissions_by_session`` dicts
-    enable O(1) matching during evaluation.
+    minimizes API calls at the cost of memory — the right tradeoff when
+    auditing hundreds of students per quiz.
 
     Note on participants:
         For new-engine quizzes, participants may be empty if the LTI
@@ -109,8 +111,7 @@ class QuizAuditContext:
     submissions_by_session: dict[tuple[str | None, str | None], Submission]
 
 
-# Type alias for evaluator functions — each takes an EvaluationContext
-# and returns an AccommodationResult.
+# Type alias for evaluator functions.
 Evaluator = Callable[[EvaluationContext], AccommodationResult]
 
 
@@ -118,23 +119,26 @@ class AccommodationService:
     """
     Orchestrates accommodation evaluation and audit report generation.
 
-    The service maintains a registry of evaluator functions keyed by
-    (engine, accommodation_type). Adding support for a new accommodation
-    type requires:
-        1. Adding the type to ``AccommodationType`` enum
-        2. Writing an evaluator method
-        3. Registering it in ``self._evaluators``
-
-    Public API (from narrowest to broadest scope):
-        - ``evaluate()``             — Single user, single accommodation
-        - ``audit_accommodation()``  — All users for one accommodation on one quiz
-        - ``audit_quiz()``           — All accommodations on one quiz
-        - ``audit_course()``         — All quizzes in a course
-        - ``audit_term()``           — All courses in a term
+    Parameters
+    ----------
+    repo:
+        Data access layer. Works with both ``CanvasRepo`` and ``JsonRepo``.
+    semaphore:
+        Optional shared semaphore for bounding concurrent quiz processing.
+        When None, a new semaphore with ``_DEFAULT_CONCURRENCY`` slots is
+        created. Pass a shared instance when running multiple service calls
+        in parallel (e.g., from a term-level audit across many courses) to
+        enforce a global concurrency limit.
     """
 
-    def __init__(self, repo: AccommodationRepo):
+    def __init__(
+        self,
+        repo: AccommodationRepo,
+        *,
+        semaphore: asyncio.Semaphore | None = None,
+    ):
         self.repo = repo
+        self._semaphore = semaphore or asyncio.Semaphore(_DEFAULT_CONCURRENCY)
         self._evaluators: dict[tuple[str, AccommodationType], Evaluator] = {
             ("new", AccommodationType.EXTRA_TIME): self._evaluate_extra_time_new,
             ("classic", AccommodationType.EXTRA_TIME): self._evaluate_extra_time_classic,
@@ -174,9 +178,8 @@ class AccommodationService:
         """
         Fetch only the data needed for a specific accommodation evaluation.
 
-        This is the single-user path — it loads just the participant,
-        submission, or items needed for the requested accommodation type,
-        avoiding unnecessary API calls.
+        This is the single-user path — loads just the participant,
+        submission, or items needed for the requested accommodation type.
 
         EXTRA_ATTEMPT always reads from submissions regardless of engine.
         EXTRA_TIME reads from participants for new quizzes (LTI required)
@@ -203,7 +206,6 @@ class AccommodationService:
                 )
 
         elif accommodation_type == AccommodationType.EXTRA_ATTEMPT:
-            # Both engines: extra_attempts lives on submissions.
             submission = await self.repo.get_submission(
                 course_id=course_id,
                 quiz_id=quiz_id,
@@ -237,12 +239,8 @@ class AccommodationService:
         """
         Eagerly load all data for a quiz into a single context object.
 
-        This is the batch path — used when auditing all users on a quiz.
-        Loads participants, submissions, and items in bulk, then builds
-        lookup dicts for O(1) matching during evaluation.
-
         Participants are only fetched for new-engine quizzes when
-        EXTRA_TIME is in the requested accommodation types. This avoids
+        EXTRA_TIME is in the requested accommodation types, avoiding
         unnecessary LTI API calls when only EXTRA_ATTEMPT or SPELL_CHECK
         are requested.
         """
@@ -327,9 +325,8 @@ class AccommodationService:
         """
         Evaluate a single accommodation for a single user.
 
-        This is the narrowest public API — loads just the data needed
-        and runs the evaluator. Useful for spot-checking individual
-        students.
+        Loads just the data needed and runs the evaluator. Useful for
+        spot-checking individual students.
         """
         ctx = await self._load_evaluation_context(
             course_id=course_id,
@@ -374,9 +371,6 @@ class AccommodationService:
         If *accommodation_types* is None, all known types are evaluated.
         Spell-check is automatically excluded for classic quizzes since
         the classic engine does not expose per-item configuration.
-
-        The context loader is passed the requested types so it can skip
-        the LTI participants call when EXTRA_TIME is not requested.
         """
         if accommodation_types is None:
             requested = [
@@ -410,13 +404,106 @@ class AccommodationService:
             )
         return rows
 
+    async def _audit_quiz_with_semaphore(
+        self,
+        *,
+        course_id: int,
+        quiz_id: int,
+        engine: str,
+        accommodation_types: list[AccommodationType] | None,
+    ) -> list[AuditRow]:
+        """
+        Acquire the semaphore then run audit_quiz.
+
+        This is the unit of work that gets passed to asyncio.gather in
+        audit_course and audit_term. The semaphore ensures at most
+        _DEFAULT_CONCURRENCY quizzes are processed at once globally,
+        regardless of how many courses are running in parallel.
+        """
+        async with self._semaphore:
+            return await self.audit_quiz(
+                course_id=course_id,
+                quiz_id=quiz_id,
+                engine=engine,
+                accommodation_types=accommodation_types,
+            )
+
+    async def audit_course(
+        self,
+        *,
+        course_id: int,
+        engine: str,
+        accommodation_types: Iterable[AccommodationType] | None = None,
+    ) -> list[AuditRow]:
+        """
+        Audit all quizzes in a course concurrently.
+
+        Quizzes are processed in parallel, bounded by the shared semaphore.
+        Results are gathered and flattened into a single list.
+        """
+        quizzes = await self.repo.list_quizzes(
+            course_id=course_id,
+            engine=engine,
+        )
+
+        types = list(accommodation_types) if accommodation_types is not None else None
+
+        tasks = [
+            self._audit_quiz_with_semaphore(
+                course_id=course_id,
+                quiz_id=quiz.quiz_id,
+                engine=engine,
+                accommodation_types=types,
+            )
+            for quiz in quizzes
+        ]
+
+        results = await asyncio.gather(*tasks)
+        return [row for quiz_rows in results for row in quiz_rows]
+
+    async def audit_term(
+        self,
+        *,
+        term_id: int,
+        engine: str,
+        accommodation_types: Iterable[AccommodationType] | None = None,
+    ) -> list[AuditRow]:
+        """
+        Audit all courses in a term concurrently.
+
+        Courses are fetched sequentially (there are few of them), but
+        the per-quiz work within each course runs concurrently, all
+        sharing the same global semaphore.
+        """
+        courses = await self.repo.list_courses(
+            term_id=term_id,
+            engine=engine,
+        )
+
+        types = list(accommodation_types) if accommodation_types is not None else None
+
+        tasks = [
+            self.audit_course(
+                course_id=course.course_id,
+                engine=engine,
+                accommodation_types=types,
+            )
+            for course in courses
+        ]
+
+        results = await asyncio.gather(*tasks)
+        return [row for course_rows in results for row in course_rows]
+
+    # ----------------------------
+    # Row builders
+    # ----------------------------
+
     def _build_spell_check_rows(self, *, ctx: QuizAuditContext) -> list[AuditRow]:
         """
         Build per-item audit rows for spell-check on essay questions.
 
-        Spell-check is a quiz-level (not user-level) accommodation —
-        it's either enabled or disabled on each essay question. Non-essay
-        items are skipped.
+        Spell-check is a quiz-level accommodation — either enabled or
+        disabled on each essay question. Non-essay items are skipped.
         """
         if ctx.engine != "new":
             return []
@@ -462,15 +549,10 @@ class AccommodationService:
         """
         Build per-user audit rows for a given accommodation type.
 
-        Routing logic:
+        Routing:
           - EXTRA_TIME + new:     iterate participants (LTI data)
-          - EXTRA_ATTEMPT + new:  iterate submissions (Canvas API data)
+          - EXTRA_ATTEMPT + new:  iterate submissions (Canvas API)
           - anything + classic:   iterate submissions
-
-        This means EXTRA_ATTEMPT rows are always generated from
-        submissions regardless of whether the LTI client is available.
-        EXTRA_TIME rows for new quizzes are only generated when
-        participants were loaded (i.e., LTI client is present).
         """
         rows: list[AuditRow] = []
 
@@ -521,7 +603,6 @@ class AccommodationService:
             return rows
 
         # --- All other cases: source is submissions ---
-        # Covers: EXTRA_ATTEMPT (both engines), EXTRA_TIME (classic)
         for submission in ctx.submissions:
             eval_ctx = self._build_evaluation_context(
                 engine=ctx.engine,
@@ -565,70 +646,10 @@ class AccommodationService:
         ctx: QuizAuditContext,
         accommodation_type: AccommodationType,
     ) -> list[AuditRow]:
-        """
-        Route to the correct row-builder based on accommodation type.
-
-        Spell-check produces per-item rows; everything else produces
-        per-user rows.
-        """
+        """Route to the correct row-builder based on accommodation type."""
         if accommodation_type == AccommodationType.SPELL_CHECK:
             return self._build_spell_check_rows(ctx=ctx)
-
-        return self._build_user_rows(
-            ctx=ctx,
-            accommodation_type=accommodation_type,
-        )
-
-    async def audit_course(
-        self,
-        *,
-        course_id: int,
-        engine: str,
-        accommodation_types: Iterable[AccommodationType] | None = None,
-    ) -> list[AuditRow]:
-        """Audit all quizzes in a course by composing per-quiz audits."""
-        quizzes = await self.repo.list_quizzes(
-            course_id=course_id,
-            engine=engine,
-        )
-
-        rows: list[AuditRow] = []
-
-        for quiz in quizzes:
-            quiz_rows = await self.audit_quiz(
-                course_id=course_id,
-                quiz_id=quiz.quiz_id,
-                engine=engine,
-                accommodation_types=accommodation_types,
-            )
-            rows.extend(quiz_rows)
-
-        return rows
-
-    async def audit_term(
-        self,
-        *,
-        term_id: int,
-        engine: str,
-        accommodation_types: Iterable[AccommodationType] | None = None,
-    ) -> list[AuditRow]:
-        """Audit all courses in a term by composing per-course audits."""
-        courses = await self.repo.list_courses(
-            term_id=term_id,
-            engine=engine,
-        )
-
-        rows: list[AuditRow] = []
-
-        for course in courses:
-            course_rows = await self.audit_course(
-                course_id=course.course_id,
-                engine=engine,
-                accommodation_types=accommodation_types,
-            )
-            rows.extend(course_rows)
-
-        return rows
+        return self._build_user_rows(ctx=ctx, accommodation_type=accommodation_type)
 
     # ----------------------------
     # Matching
@@ -645,12 +666,8 @@ class AccommodationService:
         """
         Find the submission that belongs to a given participant.
 
-        For new-engine quizzes, tries session-based matching first
-        (participant_session_id + quiz_session_id), then falls back
-        to user_id. Session-based matching is more reliable because
-        a user can have multiple participant records across retakes.
-
-        For classic quizzes, matches by user_id only.
+        For new-engine quizzes, tries session-based matching first then
+        falls back to user_id. For classic quizzes, matches by user_id only.
         """
         if engine == "new":
             submission = submissions_by_session.get(
@@ -658,7 +675,6 @@ class AccommodationService:
             )
             if submission is not None:
                 return submission
-
             return submissions_by_user.get(participant.user_id)
 
         if engine == "classic":
@@ -671,16 +687,7 @@ class AccommodationService:
     # ----------------------------
 
     def _evaluate_extra_time_new(self, ctx: EvaluationContext) -> AccommodationResult:
-        """
-        Evaluate extra time for a new-engine quiz participant.
-
-        A participant has extra time if either:
-          - timer_multiplier is enabled with a value > 1 (e.g., 1.5x)
-          - extra_time is enabled with a positive seconds value
-
-        These are set at the enrollment level in the New Quizzes API
-        and are only available via the LTI participants endpoint.
-        """
+        """Extra time for new-engine quizzes — reads from LTI participant."""
         participant = ctx.participant
         if participant is None:
             return AccommodationResult(False, {})
@@ -698,42 +705,19 @@ class AccommodationService:
         )
 
     def _evaluate_extra_time_classic(self, ctx: EvaluationContext) -> AccommodationResult:
-        """
-        Evaluate extra time for a classic quiz submission.
-
-        Classic quizzes store extra_time directly on the submission
-        object (in minutes). A positive value means the accommodation
-        was applied.
-        """
+        """Extra time for classic quizzes — reads from submission.extra_time."""
         submission = ctx.submission
         if submission is None:
             return AccommodationResult(False, {})
 
         has = (submission.extra_time or 0) > 0
-        return AccommodationResult(
-            has,
-            {
-                "extra_time": submission.extra_time,
-            },
-        )
+        return AccommodationResult(has, {"extra_time": submission.extra_time})
 
     def _evaluate_extra_attempts(self, ctx: EvaluationContext) -> AccommodationResult:
-        """
-        Evaluate extra attempts for either engine.
-
-        Both engines store extra_attempts on the submission object.
-        A positive value means the student was given additional attempts
-        beyond the quiz default. This evaluator is used for both classic
-        and new quizzes since the data source is always the submission.
-        """
+        """Extra attempts for either engine — reads from submission.extra_attempts."""
         submission = ctx.submission
         if submission is None:
             return AccommodationResult(False, {})
 
         has = (submission.extra_attempts or 0) > 0
-        return AccommodationResult(
-            has,
-            {
-                "extra_attempts": submission.extra_attempts,
-            },
-        )
+        return AccommodationResult(has, {"extra_attempts": submission.extra_attempts})

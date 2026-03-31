@@ -134,15 +134,9 @@ accommodation-audit/
 │   ├── new_items.json
 │   ├── new_quizzes.json
 │   ├── new_submissions.json
-<<<<<<< HEAD
-│   ├── participant.json
-│   ├── participants.json
-│   └── users.json
+│   └── participant.json
 ├── scripts/
 │   └── test_lti_session.py         # Manual verification script for LTI session flow
-=======
-│   └── participants.json
->>>>>>> d221f07801700e5ee2fb36db4cc3c639ac4a64bf
 ├── tests/                          # Test suite
 │   ├── integration/                #   Integration tests (live Canvas API)
 │   │   ├── conftest.py
@@ -223,14 +217,13 @@ cp .env.example .env
 
 ### Required Environment Variables
 
-| Variable | Description |
-|---|---|
-| `CANVAS_BASE_URL` | Your Canvas instance URL (e.g., `https://canvas.university.edu`) |
-| `CANVAS_TOKEN` | Canvas API access token with appropriate read permissions |
-| `CANVAS_ACCOUNT_ID` | Root or sub-account ID for course listing |
-| `CANVAS_BACKDOOR_URL` | Canvas direct login URL (e.g., `https://canvas.university.edu/login/canvas`) |
-| `CANVAS_ADMIN_USERNAME` | Canvas admin username for backdoor login |
-| `CANVAS_ADMIN_PASSWORD` | Canvas admin password for backdoor login |
+| Variable                | Description                                                                  |
+| `CANVAS_BASE_URL`       | Your Canvas instance URL (e.g., `https://canvas.university.edu`)             |
+| `CANVAS_TOKEN`          | Canvas API access token with appropriate read permissions                    |
+| `CANVAS_ACCOUNT_ID`     | Root or sub-account ID for course listing                                    |
+| `CANVAS_BACKDOOR_URL`   | Canvas direct login URL (e.g., `https://canvas.university.edu/login/canvas`) |
+| `CANVAS_ADMIN_USERNAME` | Canvas admin username for backdoor login                                     |
+| `CANVAS_ADMIN_PASSWORD` | Canvas admin password for backdoor login                                     |
 
 ## Development Process
 
