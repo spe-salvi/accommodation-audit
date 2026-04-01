@@ -5,12 +5,12 @@ Stores entity data in JSON files under a configurable cache directory
 (default: ``.cache/`` in the project root). Each file holds all entries
 for one entity type, with a per-entry timestamp used to check TTL.
 
-Cached entity types and their default TTLs
-------------------------------------------
-- Terms:   30 days  (almost never change)
-- Courses: 30 days  (stable within a term)
-- Quizzes:  1 day   (instructors do edit quizzes)
-- Users:    7 days  (name changes are rare)
+Cached entity types and their TTLs
+------------------------------------
+- Terms:   1 year  (essentially immutable — treat as forever)
+- Courses: 30 days (stable within a term)
+- Quizzes: 1 day   (instructors may edit quizzes during a term)
+- Users:   1 year  (legal name changes are rare; SIS IDs never change)
 
 Cache invalidation
 ------------------
@@ -70,12 +70,12 @@ class CacheEntity(str, Enum):
     USER   = "users"
 
 
-# Default TTLs per entity type.
+# TTLs per entity type.
 _DEFAULT_TTLS: dict[CacheEntity, timedelta] = {
-    CacheEntity.TERM:   timedelta(days=30),
-    CacheEntity.COURSE: timedelta(days=30),
-    CacheEntity.QUIZ:   timedelta(days=1),
-    CacheEntity.USER:   timedelta(days=7),
+    CacheEntity.TERM:   timedelta(days=365),   # ~forever — terms never change
+    CacheEntity.COURSE: timedelta(days=30),    # stable within a term
+    CacheEntity.QUIZ:   timedelta(days=1),     # instructors may edit quizzes
+    CacheEntity.USER:   timedelta(days=365),   # name changes are rare
 }
 
 
@@ -120,13 +120,6 @@ class PersistentCache:
     def get(self, entity: CacheEntity, key: int | str) -> dict | None:
         """
         Return the cached data for *key*, or None if missing or expired.
-
-        Parameters
-        ----------
-        entity:
-            The entity type to look up.
-        key:
-            The entity's primary ID (term_id, course_id, etc.).
         """
         store = self._load(entity)
         entry = store.get(str(key))
@@ -149,11 +142,6 @@ class PersistentCache:
     def get_list(self, entity: CacheEntity, key: int | str) -> list | None:
         """
         Return cached list data for *key*, or None if missing or expired.
-
-        Convenience wrapper for list-valued entries (e.g. quizzes for a
-        course). The key convention for list entries is the same as for
-        single entries — the caller is responsible for choosing a
-        meaningful composite key (e.g. ``f"{course_id}:{engine}"``).
         """
         data = self.get(entity, key)
         if data is None:
@@ -165,15 +153,6 @@ class PersistentCache:
     def set(self, entity: CacheEntity, key: int | str, data: Any) -> None:
         """
         Store *data* for *key* with the current timestamp.
-
-        Parameters
-        ----------
-        entity:
-            The entity type to store.
-        key:
-            The entity's primary ID.
-        data:
-            The data to cache. Must be JSON-serialisable.
         """
         store = self._load(entity)
         store[str(key)] = {
@@ -188,13 +167,10 @@ class PersistentCache:
         Reset ``cached_at`` to the Unix epoch for all entries of *entity*,
         forcing them to be treated as expired on the next access.
 
-        This preserves the cached data for inspection while ensuring
-        every entry is re-fetched on the next run.
+        Preserves the cached data for inspection while ensuring every
+        entry is re-fetched on the next run.
 
-        Returns
-        -------
-        int
-            Number of entries invalidated.
+        Returns the number of entries invalidated.
         """
         store = self._load(entity)
         count = len(store)
@@ -209,9 +185,7 @@ class PersistentCache:
 
     def stats(self) -> dict[str, dict]:
         """
-        Return hit/miss/expired counts and entry totals per entity type.
-
-        Loads all cache files to count valid vs. expired entries.
+        Return entry totals and valid/expired counts per entity type.
         """
         result = {}
         for entity in CacheEntity:
@@ -238,7 +212,6 @@ class PersistentCache:
         return self._dir / f"{entity.value}.json"
 
     def _load(self, entity: CacheEntity) -> dict[str, dict]:
-        """Load and return the in-memory store for *entity*, reading from disk if needed."""
         if entity in self._store:
             return self._store[entity]
 
@@ -266,7 +239,6 @@ class PersistentCache:
         return self._store[entity]
 
     def _save(self, entity: CacheEntity, store: dict[str, dict]) -> None:
-        """Write the in-memory store for *entity* to disk."""
         path = self._path(entity)
         try:
             path.write_text(

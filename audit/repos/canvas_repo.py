@@ -11,10 +11,10 @@ An optional ``PersistentCache`` can be injected at construction. When
 present, the following entity types are read from cache before hitting
 Canvas, and written back on a miss:
 
-  - Terms   (TTL: 30 days)
-  - Courses (TTL: 30 days)
-  - Quizzes (TTL: 1 day, keyed by course_id:engine)
-  - Users   (TTL: 7 days)
+  - Terms   (TTL: 1 year  — essentially never change)
+  - Courses (TTL: 30 days — stable within a term)
+  - Quizzes (TTL: 1 day   — instructors may edit during a term)
+  - Users   (TTL: 1 year  — name/SIS changes are rare)
 
 Submissions, participants, and items are intentionally NOT cached —
 they change frequently during a term and must always reflect the
@@ -36,14 +36,13 @@ session is treated as an empty result rather than a hard failure.
 from __future__ import annotations
 
 import logging
-from dataclasses import asdict
 from typing import Optional
 
 from audit.cache.persistent import CacheEntity, PersistentCache
 from audit.clients.canvas_client import CanvasClient
 from audit.clients.new_quiz_client import NewQuizClient
 from audit.exceptions import LtiError
-from audit.models.canvas import Course, NewQuizItem, Participant, Quiz, Submission
+from audit.models.canvas import Course, NewQuizItem, Participant, Quiz, Submission, Term, User
 from audit.repos.base import AccommodationRepo
 
 logger = logging.getLogger(__name__)
@@ -80,6 +79,73 @@ class CanvasRepo(AccommodationRepo):
         self._cache = persistent_cache
 
     # ------------------------------------------------------------------
+    # Terms  (cached by account_id, TTL 1 year)
+    # ------------------------------------------------------------------
+
+    async def list_terms(self) -> list[Term]:
+        """
+        Fetch all enrollment terms for this account.
+
+        Cached by account_id with a 1-year TTL. Terms are essentially
+        immutable in Canvas — created once per semester, never renamed.
+        """
+        cache_key = f"account:{self._account_id}:terms"
+
+        if self._cache is not None:
+            cached = self._cache.get_list(CacheEntity.TERM, cache_key)
+            if cached is not None:
+                return Term.list_from_api(cached)
+
+        payload = await self.client.get_json(
+            f"/api/v1/accounts/{self._account_id}/terms"
+        )
+        raw_list = payload.get("enrollment_terms", []) if isinstance(payload, dict) else payload
+        terms = Term.list_from_api(raw_list)
+
+        if self._cache is not None:
+            self._cache.set(CacheEntity.TERM, cache_key, raw_list)
+
+        logger.debug("list_terms: fetched %d terms from Canvas", len(terms))
+        return terms
+
+    # ------------------------------------------------------------------
+    # Users  (cached by user_id, TTL 1 year)
+    # ------------------------------------------------------------------
+
+    async def get_user(self, user_id: int) -> User | None:
+        """
+        Fetch a single user's profile by user ID.
+
+        Cached by ``user_id`` with a 1-year TTL. User names and SIS IDs
+        change rarely — the cache is almost always warm after the first
+        run of a term audit.
+
+        Uses ``/api/v1/users/{user_id}/profile`` which returns the full
+        profile including ``sortable_name`` and ``sis_user_id``.
+
+        Returns None if the user cannot be found or parsed.
+        """
+        if self._cache is not None:
+            cached = self._cache.get(CacheEntity.USER, user_id)
+            if cached is not None:
+                return User.from_api(cached)
+
+        try:
+            payload = await self.client.get_json(f"/api/v1/users/{user_id}/profile")
+        except Exception as exc:
+            logger.warning("get_user: failed to fetch user_id=%d: %s", user_id, exc)
+            return None
+
+        user = User.from_api(payload)
+        if user is None:
+            return None
+
+        if self._cache is not None:
+            self._cache.set(CacheEntity.USER, user_id, payload)
+
+        return user
+
+    # ------------------------------------------------------------------
     # Participants  (not cached — changes frequently)
     # ------------------------------------------------------------------
 
@@ -89,8 +155,8 @@ class CanvasRepo(AccommodationRepo):
         """
         Fetch all participants for a new-engine quiz.
 
-        Not cached — participant data (extra time, multipliers) changes
-        when accommodations are updated and must always be current.
+        Not cached — participant data changes when accommodations are
+        updated and must always be current.
         """
         if engine != "new" or self._new_quiz_client is None:
             return []
@@ -101,9 +167,7 @@ class CanvasRepo(AccommodationRepo):
             )
         except LtiError as exc:
             logger.warning(
-                "list_participants: LTI error for quiz_id=%d: %s",
-                quiz_id,
-                exc,
+                "list_participants: LTI error for quiz_id=%d: %s", quiz_id, exc,
             )
             return []
 
@@ -136,8 +200,7 @@ class CanvasRepo(AccommodationRepo):
         """
         Fetch all submissions for a quiz.
 
-        Not cached — submission data changes as students complete quizzes
-        and instructors grade them.
+        Not cached — submission data changes as students complete quizzes.
         """
         if engine == "new":
             path = f"/api/v1/courses/{course_id}/assignments/{quiz_id}/submissions"
@@ -174,8 +237,7 @@ class CanvasRepo(AccommodationRepo):
         """
         Fetch all items for a new-engine quiz.
 
-        Not cached — spell-check settings on individual questions may be
-        updated by instructors between audit runs.
+        Not cached — spell-check settings may be updated by instructors.
         """
         if engine != "new":
             return []
@@ -198,9 +260,7 @@ class CanvasRepo(AccommodationRepo):
         """
         Fetch all quizzes in a course for the given engine.
 
-        Cached by ``(course_id, engine)`` with a 1-day TTL. A full term
-        audit fetches quizzes for every course — caching this cuts
-        repeated runs from minutes to seconds.
+        Cached by ``(course_id, engine)`` with a 1-day TTL.
         """
         cache_key = f"{course_id}:{engine}"
 
@@ -250,13 +310,7 @@ class CanvasRepo(AccommodationRepo):
         """
         Fetch all courses for a term under this account.
 
-        Cached by ``term_id`` with a 30-day TTL. Course enrolments and
-        availability are stable within a term — this is the highest-
-        value cache entry since it's fetched once per term per engine.
-
-        Note: ``engine`` is not part of the cache key because the course
-        list is the same regardless of engine. The engine parameter is
-        kept in the protocol signature for protocol conformance.
+        Cached by ``term_id`` with a 30-day TTL.
         """
         if self._cache is not None:
             cached = self._cache.get_list(CacheEntity.COURSE, term_id)
@@ -279,8 +333,6 @@ class CanvasRepo(AccommodationRepo):
     ) -> Optional[Course]:
         """
         Fetch a single course, checking the cache before hitting Canvas.
-
-        Falls back to a direct API call if the course isn't in the cache.
         """
         if self._cache is not None:
             cached = self._cache.get(CacheEntity.COURSE, course_id)

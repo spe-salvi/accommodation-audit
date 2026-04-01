@@ -1,0 +1,120 @@
+{
+  "version": 1,
+  "entries": {
+    "account:1:terms": {
+      "data": [
+        {
+          "id": 1,
+          "name": "Default Term",
+          "start_at": null,
+          "end_at": null,
+          "workflow_state": "active",
+          "grading_period_group_id": null,
+          "created_at": "2019-04-22T17:12:41Z",
+          "sis_term_id": null,
+          "sis_import_id": null
+        },
+        {
+          "id": 128,
+          "name": "2027-2028 - Summer",
+          "start_at": "2028-05-08T00:00:00Z",
+          "end_at": "2028-09-05T00:00:00Z",
+          "workflow_state": "active",
+          "grading_period_group_id": null,
+          "created_at": "2023-02-04T13:17:38Z",
+          "sis_term_id": "202730",
+          "sis_import_id": 6322
+        },
+        {
+          "id": 127,
+          "name": "2027-2028 - Spring",
+          "start_at": "2028-01-10T00:00:00Z",
+          "end_at": "2028-05-20T00:00:00Z",
+          "workflow_state": "active",
+          "grading_period_group_id": null,
+          "created_at": "2023-02-04T13:17:38Z",
+          "sis_term_id": "202720",
+          "sis_import_id": 6322
+        },
+        {
+          "id": 126,
+          "name": "2027-2028 - Fall",
+          "start_at": "2027-08-15T00:00:00Z",
+          "end_at": "2027-12-24T00:00:00Z",
+          "workflow_state": "active",
+          "grading_period_group_id": null,
+          "created_at": "2023-02-04T13:17:38Z",
+          "sis_term_id": "202710",
+          "sis_import_id": 6322
+        },
+        {
+          "id": 123,
+          "name": "2026-2027 - Summer",
+          "start_at": "2027-05-08T00:00:00Z",
+          "end_at": "2027-09-05T00:00:00Z",
+          "workflow_state": "active",
+          "grading_period_group_id": null,
+          "created_at": "2021-12-15T20:57:53Z",
+          "sis_term_id": "202630",
+          "sis_import_id": 6322
+        },
+        {
+          "id": 122,
+          "name": "2026-2027 - Spring",
+          "start_at": "2027-01-10T00:00:00Z",
+          "end_at": "2027-05-20T00:00:00Z",
+          "workflow_state": "active",
+          "grading_period_group_id": null,
+          "created_at": "2021-12-15T20:57:53Z",
+          "sis_term_id": "202620",
+          "sis_import_id": 6322
+        },
+        {
+          "id": 121,
+          "name": "2026-2027 - Fall",
+          "start_at": "2026-08-15T00:00:00Z",
+          "end_at": "2026-12-24T00:00:00Z",
+          "workflow_state": "active",
+          "grading_period_group_id": null,
+          "created_at": "2021-12-15T20:57:53Z",
+          "sis_term_id": "202610",
+          "sis_import_id": 6322
+        },
+        {
+          "id": 118,
+          "name": "2025-2026 - Summer",
+          "start_at": "2026-04-29T04:00:00Z",
+          "end_at": "2026-09-05T00:00:00Z",
+          "workflow_state": "active",
+          "grading_period_group_id": null,
+          "created_at": "2021-12-15T20:57:53Z",
+          "sis_term_id": "202530",
+          "sis_import_id": 6322
+        },
+        {
+          "id": 117,
+          "name": "2025-2026 - Spring",
+          "start_at": "2026-01-05T05:00:00Z",
+          "end_at": "2026-05-20T00:00:00Z",
+          "workflow_state": "active",
+          "grading_period_group_id": null,
+          "created_at": "2021-12-15T20:57:53Z",
+          "sis_term_id": "202520",
+          "sis_import_id": 6322
+        },
+        {
+          "id": 116,
+          "name": "2025-2026 - Fall",
+          "start_at": "2025-08-15T00:00:00Z",
+          "end_at": "2025-12-24T00:00:00Z",
+          "workflow_state": "active",
+          "grading_period_group_id": null,
+          "created_at": "2021-12-15T20:57:53Z",
+          "sis_term_id": "202510",
+          "sis_import_id": 6322
+        }
+      ],
+      "cached_at": "2026-04-01T14:03:33.031529+00:00"
+    }
+  }
+}

@@ -1,11 +1,9 @@
 """
 Excel report generation for accommodation audit results.
 
-Uses pandas + xlsxwriter for fast bulk writes. At 57k rows, openpyxl
-(pure Python, per-cell) is orders of magnitude slower than xlsxwriter
-(C extension, streaming write). Conditional formatting is applied as a
-range-level rule rather than per-cell, which is both faster and idiomatic
-for xlsxwriter.
+Uses pandas + xlsxwriter for fast bulk writes. Conditional formatting
+is applied as a range-level rule rather than per-cell so performance
+scales well even at tens of thousands of rows.
 
 Extensibility
 -------------
@@ -35,7 +33,7 @@ from audit.models.audit import AuditRow
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Colours (xlsxwriter hex strings, no leading #)
+# Colours
 # ---------------------------------------------------------------------------
 
 _GREEN_HEX = "#C6EFCE"
@@ -50,20 +48,38 @@ _HEADER_FG = "#FFFFFF"
 # To add a column later, append a tuple here — no other changes needed.
 
 _COLUMN_SPEC: list[tuple[str, Callable[[AuditRow], object]]] = [
+    # --- Term context (Bucket 2) ---
+    ("enrollment_term_id",      lambda r: r.enrollment_term_id),
+    ("term_name",               lambda r: r.term_name),
+    # --- Course context (Bucket 1) ---
     ("course_id",               lambda r: r.course_id),
+    ("course_name",             lambda r: r.course_name),
+    ("course_code",             lambda r: r.course_code),
+    ("sis_course_id",           lambda r: r.sis_course_id),
+    # --- Quiz context (Bucket 1) ---
     ("quiz_id",                 lambda r: r.quiz_id),
+    ("quiz_title",              lambda r: r.quiz_title),
+    ("quiz_due_at",             lambda r: r.quiz_due_at),
+    ("quiz_lock_at",            lambda r: r.quiz_lock_at),
+    # --- Audit identity ---
     ("engine",                  lambda r: r.engine),
     ("accommodation_type",      lambda r: r.accommodation_type.value if r.accommodation_type else None),
+    # --- User context (Bucket 2) ---
     ("user_id",                 lambda r: r.user_id),
+    ("user_name",               lambda r: r.user_name),
+    ("sis_user_id",             lambda r: r.sis_user_id),
     ("item_id",                 lambda r: r.item_id),
+    # --- Audit result ---
     ("has_accommodation",       lambda r: r.has_accommodation),
     ("completed",               lambda r: r.completed),
-    # Details columns — empty when the accommodation type doesn't produce that field.
+    ("attempts_left",           lambda r: r.attempts_left),
+    # --- Accommodation details ---
     ("extra_time",              lambda r: r.details.get("extra_time")),
     ("extra_time_in_seconds",   lambda r: r.details.get("extra_time_in_seconds")),
     ("timer_multiplier_value",  lambda r: r.details.get("timer_multiplier_value")),
     ("extra_attempts",          lambda r: r.details.get("extra_attempts")),
     ("spell_check",             lambda r: r.details.get("spell_check")),
+    ("position",                lambda r: r.details.get("position")),
 ]
 
 
@@ -79,10 +95,6 @@ def write_xlsx(
 ) -> None:
     """
     Write audit rows to an Excel workbook at *output_path*.
-
-    Uses pandas + xlsxwriter for fast bulk writes. Conditional formatting
-    is applied as a range rule (not per-cell) so performance scales well
-    even at tens of thousands of rows.
 
     Parameters
     ----------
@@ -123,10 +135,8 @@ def write_xlsx(
         with tqdm(total=3, desc="Writing Excel", unit="step", leave=False) as pbar:
             writer = pd.ExcelWriter(output_path, engine="xlsxwriter")
             pbar.update(1)
-
             df.to_excel(writer, sheet_name="Audit", index=False)
             pbar.update(1)
-
             _apply_formatting(writer, df)
             writer.close()
             pbar.update(1)
@@ -148,7 +158,7 @@ def _apply_formatting(writer: pd.ExcelWriter, df: pd.DataFrame) -> None:
     Apply header styling, conditional row fills, and column widths.
 
     All formatting is applied via xlsxwriter's range-level API rather
-    than per-cell, which keeps performance O(columns) not O(rows).
+    than per-cell, keeping performance O(columns) not O(rows).
     """
     wb = writer.book
     ws = writer.sheets["Audit"]
@@ -167,9 +177,10 @@ def _apply_formatting(writer: pd.ExcelWriter, df: pd.DataFrame) -> None:
         ws.write(0, col_idx, col_name, header_fmt)
 
     # --- Conditional formatting: green for True, yellow for False ---
-    # has_accommodation is the 7th column (index 6, Excel column G).
-    # We apply a range rule over the data rows that checks column G.
-    has_accom_col_letter = _col_letter(6)  # 0-indexed → "G"
+    # Compute has_accommodation column letter dynamically from the spec.
+    col_names_list = [c for c, _ in _COLUMN_SPEC]
+    has_accom_idx = col_names_list.index("has_accommodation")
+    has_accom_col_letter = _col_letter(has_accom_idx)
     data_range = f"A2:{_col_letter(n_cols - 1)}{n_rows + 1}"
 
     green_fmt = wb.add_format({"bg_color": _GREEN_HEX})
@@ -190,9 +201,8 @@ def _apply_formatting(writer: pd.ExcelWriter, df: pd.DataFrame) -> None:
     # --- Freeze header row ---
     ws.freeze_panes(1, 0)
 
-    # --- Auto-fit column widths (approximate) ---
+    # --- Auto-fit column widths (sample first 500 rows for speed) ---
     for col_idx, col_name in enumerate(df.columns):
-        # Sample up to 500 rows to estimate column width.
         col_data = df.iloc[:500, col_idx].astype(str)
         max_len = max(col_data.str.len().max(), len(col_name))
         max_len = max(10, min(int(max_len) + 2, 50))
@@ -200,7 +210,7 @@ def _apply_formatting(writer: pd.ExcelWriter, df: pd.DataFrame) -> None:
 
 
 def _col_letter(zero_indexed: int) -> str:
-    """Convert a 0-indexed column number to an Excel column letter (A, B, ... Z, AA...)."""
+    """Convert a 0-indexed column number to an Excel column letter."""
     result = ""
     n = zero_indexed
     while True:

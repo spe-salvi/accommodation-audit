@@ -62,15 +62,24 @@
 
 ## Phase 5 — Optimization
 
-- Phase 5.1 - Runtime Cache
+- Phase 5.1 - Async
+
+- [X] Bounded Concurrency
+- [X] Research/Implement Semaphores
+
+- Phase 5.2 - Runtime Cache
 
 - [X]
 
-- Phase 5.2 - Persistent Cache (TTL)
+- Phase 5.3 - Persistent Cache (TTL)
 
 - [X]
 
-- Phase 5.3 - Metric Logging
+- Phase 5.4 - Planner and DAG Traversal
+
+- [ ]
+
+- Phase 5.5 - Metric Logging
 
 - [ ] Request Count
 - [ ] Cache Hits
@@ -79,20 +88,18 @@
 - [ ] Authorization Refresh Count, Limit
 - [ ] Retries
 
-- Phase 5.4 - Async
-
-- [X] Bounded Concurrency
-- [X] Research/Implement Semaphores
-
-- Phase 5.5 - Dynamic Rate Adaptation
+- (TBD) Phase 5.6 - Dynamic Rate Adaptation
 
 - [ ]
 
-- Phase 5.6 - Planner and DAG Traversal
+## Phase 6 - GUI
 
-- [ ]
+- [ ] 
+- [ ] 
+- [ ] 
+- [ ] 
 
-## Phase 6 — Reporting
+## Phase 7 — Reporting
 
 - [ ] Report Presentation
 - [X] Progress Indicators

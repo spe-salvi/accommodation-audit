@@ -35,6 +35,7 @@ from audit.cache.persistent import CacheEntity, PersistentCache
 from audit.cache.runtime import RequestCache
 from audit.clients.canvas_client import CanvasClient
 from audit.config import settings
+from audit.enrichment import Enricher
 from audit.logging_setup import setup_logging
 from audit.reporting import write_xlsx
 from audit.repos.base import AccommodationType
@@ -86,7 +87,14 @@ async def _run_audit(
     show_progress: bool,
     persistent_cache: PersistentCache,
 ) -> None:
-    """Build the full dependency chain and run the audit."""
+    """
+    Build the full dependency chain, run the audit, enrich, and write.
+
+    Pipeline:
+        1. Audit  — AccommodationService produces raw AuditRow list
+        2. Enrich — Enricher fills in term_name (and future user fields)
+        3. Write  — write_xlsx produces the Excel report
+    """
     audit_start = time.perf_counter()
     runtime_cache = RequestCache()
 
@@ -103,6 +111,7 @@ async def _run_audit(
             persistent_cache=persistent_cache,
         )
         svc = AccommodationService(repo)
+        enricher = Enricher(repo=repo)
 
         tasks = []
         for eng in engines:
@@ -129,6 +138,9 @@ async def _run_audit(
 
         results = await asyncio.gather(*tasks)
         rows = [row for engine_rows in results for row in engine_rows]
+
+        # Enrich rows with term names (and future user data)
+        rows = await enricher.enrich(rows)
 
     audit_elapsed = _fmt_elapsed(time.perf_counter() - audit_start)
     runtime_cache.log_stats()

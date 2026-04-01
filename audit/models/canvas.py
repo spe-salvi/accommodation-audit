@@ -179,6 +179,8 @@ class Quiz:
     quiz_id: int
     engine: str
     title: str
+    due_at: str | None = None
+    lock_at: str | None = None
 
     @property
     def key(self) -> tuple[int, int]:
@@ -228,6 +230,8 @@ class Quiz:
             quiz_id=quiz_id,
             engine=engine,
             title=parse_str(data.get("title")),
+            due_at=parse_str(data.get("due_at"), default="") or None,
+            lock_at=parse_str(data.get("lock_at"), default="") or None,
         )
 
     """
@@ -451,6 +455,7 @@ class Submission:
     extra_attempts: int
     extra_time: int
     date: str
+    attempts_left: int | None
     participant_session_id: str | None
     quiz_session_id: str | None
 
@@ -559,6 +564,7 @@ class Submission:
             extra_attempts=parse_int(data.get("extra_attempts"), 0) or 0,
             extra_time=parse_int(data.get("extra_time"), 0) or 0,
             date=date,
+            attempts_left=parse_int(data.get("attempts_left")),
             participant_session_id=participant_session_id,
             quiz_session_id=quiz_session_id,
         )
