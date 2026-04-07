@@ -20,6 +20,9 @@ Submissions, participants, and items are intentionally NOT cached —
 they change frequently during a term and must always reflect the
 current state of Canvas.
 
+Enrollments are also not cached — enrollment status changes (drops,
+late adds) and must always reflect the current state of Canvas.
+
 API path conventions
 --------------------
 Classic quizzes: ``/api/v1/courses/{course_id}/quizzes/...``
@@ -42,7 +45,10 @@ from audit.cache.persistent import CacheEntity, PersistentCache
 from audit.clients.canvas_client import CanvasClient
 from audit.clients.new_quiz_client import NewQuizClient
 from audit.exceptions import LtiError
-from audit.models.canvas import Course, NewQuizItem, Participant, Quiz, Submission, Term, User
+from audit.models.canvas import (
+    Course, Enrollment, NewQuizItem, Participant,
+    Quiz, Submission, Term, User,
+)
 from audit.repos.base import AccommodationRepo
 
 logger = logging.getLogger(__name__)
@@ -96,10 +102,9 @@ class CanvasRepo(AccommodationRepo):
             if cached is not None:
                 return Term.list_from_api(cached)
 
-        payload = await self.client.get_json(
+        raw_list = await self.client.get_paginated_json(
             f"/api/v1/accounts/{self._account_id}/terms"
         )
-        raw_list = payload.get("enrollment_terms", []) if isinstance(payload, dict) else payload
         terms = Term.list_from_api(raw_list)
 
         if self._cache is not None:
@@ -116,12 +121,9 @@ class CanvasRepo(AccommodationRepo):
         """
         Fetch a single user's profile by user ID.
 
-        Cached by ``user_id`` with a 1-year TTL. User names and SIS IDs
-        change rarely — the cache is almost always warm after the first
-        run of a term audit.
-
-        Uses ``/api/v1/users/{user_id}/profile`` which returns the full
-        profile including ``sortable_name`` and ``sis_user_id``.
+        Cached by ``user_id`` with a 1-year TTL. Uses
+        ``/api/v1/users/{user_id}/profile`` which returns ``sortable_name``
+        and ``sis_user_id``.
 
         Returns None if the user cannot be found or parsed.
         """
@@ -131,9 +133,13 @@ class CanvasRepo(AccommodationRepo):
                 return User.from_api(cached)
 
         try:
-            payload = await self.client.get_json(f"/api/v1/users/{user_id}/profile")
+            payload = await self.client.get_json(
+                f"/api/v1/users/{user_id}/profile"
+            )
         except Exception as exc:
-            logger.warning("get_user: failed to fetch user_id=%d: %s", user_id, exc)
+            logger.warning(
+                "get_user: failed to fetch user_id=%d: %s", user_id, exc
+            )
             return None
 
         user = User.from_api(payload)
@@ -144,6 +150,57 @@ class CanvasRepo(AccommodationRepo):
             self._cache.set(CacheEntity.USER, user_id, payload)
 
         return user
+
+    # ------------------------------------------------------------------
+    # Enrollments  (not cached — enrollment status changes frequently)
+    # ------------------------------------------------------------------
+
+    async def list_enrollments(
+        self,
+        user_id: int,
+        *,
+        term_id: int | None = None,
+    ) -> list[Enrollment]:
+        """
+        Fetch all active course enrollments for a user.
+
+        Not cached — enrollment status changes when students drop or add
+        courses and must always reflect the current state of Canvas.
+
+        Parameters
+        ----------
+        user_id:
+            Canvas user ID to look up enrollments for.
+        term_id:
+            Optional enrollment term ID. When provided, the Canvas API
+            filters results server-side to that term, avoiding the need
+            to page through all historical enrollments.
+
+        Returns
+        -------
+        list[Enrollment]
+            Active student enrollments only (``enrollment_state=active``).
+            Inactive, invited, and rejected enrollments are excluded so
+            that user-scoped audits only cover courses the student is
+            currently attending.
+        """
+        params: dict = {"type[]": "StudentEnrollment", "state[]": "active"}
+        if term_id is not None:
+            params["enrollment_term_id"] = term_id
+
+        payload = await self.client.get_paginated_json(
+            f"/api/v1/users/{user_id}/enrollments",
+            params=params,
+        )
+
+        enrollments = Enrollment.list_from_api(payload)
+        logger.debug(
+            "list_enrollments: user_id=%d term_id=%s → %d active enrollment(s)",
+            user_id,
+            term_id,
+            len(enrollments),
+        )
+        return enrollments
 
     # ------------------------------------------------------------------
     # Participants  (not cached — changes frequently)
@@ -203,7 +260,9 @@ class CanvasRepo(AccommodationRepo):
         Not cached — submission data changes as students complete quizzes.
         """
         if engine == "new":
-            path = f"/api/v1/courses/{course_id}/assignments/{quiz_id}/submissions"
+            path = (
+                f"/api/v1/courses/{course_id}/assignments/{quiz_id}/submissions"
+            )
         else:
             path = f"/api/v1/courses/{course_id}/quizzes/{quiz_id}/submissions"
 
@@ -226,6 +285,7 @@ class CanvasRepo(AccommodationRepo):
             if submission.user_id == user_id:
                 return submission
         return None
+        
 
     # ------------------------------------------------------------------
     # Items  (not cached — quiz content may change)
@@ -346,6 +406,45 @@ class CanvasRepo(AccommodationRepo):
         if course is None:
             return None
         if course.enrollment_term_id != term_id:
+            return None
+
+        if self._cache is not None:
+            self._cache.set(CacheEntity.COURSE, course_id, payload)
+
+        return course
+
+
+    async def get_course_by_id(self, course_id: int) -> Course | None:
+        """
+        Fetch a single course by ID without term validation.
+
+        Used when the caller knows the course_id but not the term_id —
+        for example, when resolving course metadata from an enrollment.
+
+        Checks the persistent cache first (courses are cached by course_id
+        in get_course, so this will usually be a hit after the first
+        term audit). Only falls back to the Canvas API on a cache miss.
+
+        Returns None if the course cannot be found or parsed.
+        """
+        if self._cache is not None:
+            cached = self._cache.get(CacheEntity.COURSE, course_id)
+            if cached is not None:
+                course = Course.from_api(cached)
+                if course is not None:
+                    return course
+
+        try:
+            payload = await self.client.get_json(f"/api/v1/courses/{course_id}")
+        except Exception as exc:
+            logger.warning(
+                "get_course_by_id: failed to fetch course_id=%d: %s",
+                course_id, exc,
+            )
+            return None
+
+        course = Course.from_api(payload)
+        if course is None:
             return None
 
         if self._cache is not None:

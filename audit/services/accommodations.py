@@ -5,18 +5,37 @@ This module contains ``AccommodationService`` — the central orchestrator
 that evaluates whether students have accommodations applied to their
 quizzes and produces structured audit results.
 
+The service is organized into three concerns:
+
+  1. **Context loading** — Fetching and assembling the data needed to
+     evaluate accommodations (participants, submissions, items).
+  2. **Evaluation** — Pure functions that inspect model data and return
+     an ``AccommodationResult`` (has/doesn't have + details).
+  3. **Audit composition** — Methods that combine context loading and
+     evaluation across users, quizzes, courses, and terms to produce
+     lists of ``AuditRow`` objects.
+
+The service depends on ``AccommodationRepo`` (a protocol), so it works
+identically whether the data comes from the Canvas API or local JSON.
+
 Bucket 1 enrichment
 --------------------
-``QuizAuditContext`` now carries the full ``Course`` and ``Quiz`` objects
+``QuizAuditContext`` carries the full ``Course`` and ``Quiz`` objects
 alongside raw data. Row builders extract human-readable fields
-(course_name, quiz_title, due_at, etc.) directly from these objects —
-no additional API calls are needed.
+(course_name, quiz_title, etc.) directly — no additional API calls.
+
+User-scoped auditing
+--------------------
+``audit_user`` accepts a ``user_id`` plus optional scope narrowing
+(term_id, course_id, quiz_id). It uses the enrollments endpoint to
+discover only the courses a student is actually enrolled in, then
+audits those courses and filters results to the requested user.
 
 Concurrency model
 -----------------
-``audit_term`` fans out across courses concurrently via ``asyncio.gather``,
-gated by a shared ``asyncio.Semaphore``. Within each course, quizzes are
-processed sequentially to keep Canvas API request volume bounded.
+``audit_term`` and ``audit_user`` fan out across courses concurrently
+via ``asyncio.gather``, gated by a shared ``asyncio.Semaphore``.
+Within each course, quizzes are processed sequentially.
 
 Data source routing
 -------------------
@@ -55,9 +74,7 @@ class AccommodationResult:
 
 @dataclass(frozen=True)
 class EvaluationContext:
-    """
-    The minimal data slice needed to evaluate one accommodation for one user.
-    """
+    """The minimal data slice needed to evaluate one accommodation for one user."""
     engine: str
     participant: Participant | None = None
     submission: Submission | None = None
@@ -69,9 +86,8 @@ class QuizAuditContext:
     """
     Pre-loaded data for auditing all users/items on a single quiz.
 
-    Carries the full Course and Quiz objects so row builders can populate
-    human-readable fields (course_name, quiz_title, etc.) without
-    additional API calls.
+    Carries the full Course and Quiz objects so row builders can
+    populate human-readable fields without additional API calls.
     """
     course: Course
     quiz: Quiz
@@ -104,7 +120,7 @@ class AccommodationService:
         Data access layer. Works with both ``CanvasRepo`` and ``JsonRepo``.
     semaphore:
         Optional shared semaphore bounding how many courses are processed
-        concurrently in ``audit_term``.
+        concurrently in ``audit_term`` and ``audit_user``.
     """
 
     def __init__(
@@ -276,39 +292,22 @@ class AccommodationService:
 
     async def audit_accommodation(self, request: AuditRequest) -> list[AuditRow]:
         """Audit a single accommodation type across all users on a quiz."""
-        # For audit_accommodation we need Course and Quiz objects.
-        # Use placeholder objects since this path is used for single-quiz spot checks.
-        from audit.models.canvas import Course as C, Quiz as Q
         quiz = await self.repo.get_quiz(
             course_id=request.course_id,
             quiz_id=request.quiz_id,
             engine=request.engine,
         )
-        # Fall back gracefully if quiz not found
         if quiz is None:
             return []
 
-        courses = await self.repo.list_courses(term_id=0, engine=request.engine)
-        course = next((c for c in courses if c.course_id == request.course_id), None)
-        if course is None:
-            # Build a minimal placeholder Course
-            course = C(
-                course_id=request.course_id,
-                name="",
-                course_code=None,
-                sis_course_id=None,
-                enrollment_term_id=None,
-            )
-
+        course = _placeholder_course(request.course_id)
         ctx = await self._load_quiz_audit_context(
-            course=course,
-            quiz=quiz,
+            course=course, quiz=quiz,
             engine=request.engine,
             accommodation_types=[request.accommodation_type],
         )
         return self._audit_accommodation_with_quiz_context(
-            ctx=ctx,
-            accommodation_type=request.accommodation_type,
+            ctx=ctx, accommodation_type=request.accommodation_type,
         )
 
     async def audit_quiz(
@@ -328,7 +327,7 @@ class AccommodationService:
         ----------
         _course, _quiz:
             Pre-fetched objects passed down from audit_course to avoid
-            redundant lookups. When None, they are fetched from the repo.
+            redundant lookups.
         """
         if accommodation_types is None:
             requested = [
@@ -342,25 +341,16 @@ class AccommodationService:
         if engine != "new":
             requested = [a for a in requested if a != AccommodationType.SPELL_CHECK]
 
-        # Resolve Course and Quiz if not passed in
         quiz = _quiz or await self.repo.get_quiz(
             course_id=course_id, quiz_id=quiz_id, engine=engine,
         )
         if quiz is None:
             return []
 
-        course = _course
-        if course is None:
-            from audit.models.canvas import Course as C
-            course = C(
-                course_id=course_id, name="", course_code=None,
-                sis_course_id=None, enrollment_term_id=None,
-            )
+        course = _course or _placeholder_course(course_id)
 
         ctx = await self._load_quiz_audit_context(
-            course=course,
-            quiz=quiz,
-            engine=engine,
+            course=course, quiz=quiz, engine=engine,
             accommodation_types=requested,
         )
 
@@ -384,30 +374,21 @@ class AccommodationService:
         """
         Audit all quizzes in a course sequentially.
 
-        Fetches the Course object once and passes it down to each quiz
-        audit so row builders have access to course_name, course_code, etc.
+        Fetches the Course object once and passes it to each quiz audit.
         """
         quizzes = await self.repo.list_quizzes(course_id=course_id, engine=engine)
         types = list(accommodation_types) if accommodation_types is not None else None
 
-        # Fetch Course object once for the whole course audit
         course = _course
         if course is None:
-            # Try to get it from the repo; build a placeholder if unavailable
-            # (JsonRepo doesn't support get_course without term_id)
             try:
                 course = await self.repo.get_course(
                     term_id=0, course_id=course_id, engine=engine,
                 )
             except Exception:
                 course = None
-
         if course is None:
-            from audit.models.canvas import Course as C
-            course = C(
-                course_id=course_id, name="", course_code=None,
-                sis_course_id=None, enrollment_term_id=None,
-            )
+            course = _placeholder_course(course_id)
 
         rows: list[AuditRow] = []
         for quiz in quizzes:
@@ -431,6 +412,7 @@ class AccommodationService:
         accommodation_types: list[AccommodationType] | None,
         _course: Course | None = None,
     ) -> list[AuditRow]:
+        """Acquire the semaphore then run audit_course."""
         async with self._semaphore:
             return await self.audit_course(
                 course_id=course_id,
@@ -450,8 +432,8 @@ class AccommodationService:
         """
         Audit all courses in a term concurrently.
 
-        Passes the Course object from list_courses down to audit_course
-        so each course's name/code is available without a second fetch.
+        Passes the Course object from list_courses down to each course
+        audit so course metadata is available without re-fetching.
         """
         courses = await self.repo.list_courses(term_id=term_id, engine=engine)
         types = list(accommodation_types) if accommodation_types is not None else None
@@ -478,6 +460,144 @@ class AccommodationService:
             results = await asyncio.gather(*tasks)
 
         return [row for course_rows in results for row in course_rows]
+
+    async def audit_user(
+        self,
+        *,
+        user_id: int,
+        engine: str,
+        accommodation_types: Iterable[AccommodationType] | None = None,
+        term_id: int | None = None,
+        course_id: int | None = None,
+        quiz_id: int | None = None,
+        show_progress: bool = False,
+    ) -> list[AuditRow]:
+        """
+        Audit accommodations for a single user.
+
+        Uses the enrollments endpoint to discover which courses the user
+        is enrolled in, then audits only those courses — avoiding a
+        full-term scan. Results are filtered to rows belonging to the
+        requested user (spell-check rows, which are item-level and have
+        no user_id, are excluded from user-scoped results).
+
+        Scope combinations
+        ------------------
+        - user + quiz:   audit one quiz, return that user's rows
+        - user + course: audit one course, return that user's rows
+        - user + term:   use enrollments filtered by term, audit those courses
+        - user alone:    use all active enrollments, audit those courses
+
+        Parameters
+        ----------
+        user_id:
+            Canvas user ID to audit.
+        engine:
+            Quiz engine ("new", "classic", or called once per engine from CLI).
+        accommodation_types:
+            Accommodation types to evaluate. Defaults to all types.
+        term_id:
+            Optional term scope. Filters enrollments server-side when provided.
+        course_id:
+            Optional course scope. Skips enrollment lookup entirely.
+        quiz_id:
+            Optional quiz scope. Requires course_id to be set.
+        show_progress:
+            If True, show tqdm bar over course audits (only when multiple
+            courses are being audited).
+        """
+        types = list(accommodation_types) if accommodation_types is not None else None
+
+        # --- quiz scope: direct, no enrollment lookup needed ---
+        if quiz_id is not None and course_id is not None:
+            _course = None
+            if hasattr(self.repo, "get_course_by_id"):
+                _course = await self.repo.get_course_by_id(course_id)
+            rows = await self.audit_quiz(
+                course_id=course_id,
+                quiz_id=quiz_id,
+                engine=engine,
+                accommodation_types=types,
+                _course=_course,
+            )
+            return _filter_user(rows, user_id)
+
+        # --- course scope: direct, no enrollment lookup needed ---
+        if course_id is not None:
+            _course = None
+            if hasattr(self.repo, "get_course_by_id"):
+                _course = await self.repo.get_course_by_id(course_id)
+            rows = await self.audit_course(
+                course_id=course_id,
+                engine=engine,
+                accommodation_types=types,
+                _course=_course,
+            )
+            return _filter_user(rows, user_id)
+
+        # --- term or global scope: use enrollments to find courses ---
+        # CanvasRepo.list_enrollments is not on the protocol so we access
+        # it directly. This is a live-Canvas-only feature.
+        if not hasattr(self.repo, "list_enrollments"):
+            raise NotImplementedError(
+                "audit_user with term/global scope requires a CanvasRepo with "
+                "list_enrollments support. JsonRepo does not support this."
+            )
+
+        enrollments = await self.repo.list_enrollments(
+            user_id, term_id=term_id,
+        )
+
+        if not enrollments:
+            logger.info(
+                "audit_user: no active enrollments found for user_id=%d term_id=%s",
+                user_id, term_id,
+            )
+            return []
+
+        logger.info(
+            "audit_user: user_id=%d has %d active enrollment(s) — auditing",
+            user_id, len(enrollments),
+        )
+
+        # Fetch Course objects concurrently — usually warm in persistent cache.
+        if hasattr(self.repo, "get_course_by_id"):
+            course_results = await asyncio.gather(
+                *[self.repo.get_course_by_id(e.course_id) for e in enrollments],
+                return_exceptions=True,
+            )
+            course_by_id: dict[int, Course] = {
+                e.course_id: c
+                for e, c in zip(enrollments, course_results)
+                if isinstance(c, Course)
+            }
+        else:
+            course_by_id = {}
+
+        tasks = [
+            self._audit_course_with_semaphore(
+                course_id=enrollment.course_id,
+                engine=engine,
+                accommodation_types=types,
+                _course=course_by_id.get(enrollment.course_id),
+            )
+            for enrollment in enrollments
+        ]
+
+
+        if show_progress and len(tasks) > 1:
+            from tqdm.asyncio import tqdm_asyncio
+            results = await tqdm_asyncio.gather(
+                *tasks,
+                desc=f"Auditing courses for user {user_id} ({engine})",
+                unit="course",
+                total=len(enrollments),
+            )
+        else:
+            results = await asyncio.gather(*tasks)
+
+        all_rows = [row for course_rows in results for row in course_rows]
+        return _filter_user(all_rows, user_id)
 
     # ----------------------------
     # Row builders
@@ -508,14 +628,13 @@ class AccommodationService:
                 has_accommodation=enabled,
                 details={"spell_check": enabled, "position": item.position},
                 completed=None,
-                # Bucket 1 enrichment
+                enrollment_term_id=ctx.course.enrollment_term_id,
                 course_name=ctx.course.name or None,
                 course_code=ctx.course.course_code,
                 sis_course_id=ctx.course.sis_course_id,
                 quiz_title=ctx.quiz.title or None,
                 quiz_due_at=ctx.quiz.due_at,
                 quiz_lock_at=ctx.quiz.lock_at,
-                enrollment_term_id=ctx.course.enrollment_term_id,
             ))
 
         return rows
@@ -537,13 +656,13 @@ class AccommodationService:
         rows: list[AuditRow] = []
 
         # Shared context fields for every row in this quiz
+        enrollment_term_id = ctx.course.enrollment_term_id
         course_name = ctx.course.name or None
         course_code = ctx.course.course_code
         sis_course_id = ctx.course.sis_course_id
         quiz_title = ctx.quiz.title or None
         quiz_due_at = ctx.quiz.due_at
         quiz_lock_at = ctx.quiz.lock_at
-        enrollment_term_id = ctx.course.enrollment_term_id
 
         # --- New engine, EXTRA_TIME: source is participants ---
         if ctx.engine == "new" and accommodation_type == AccommodationType.EXTRA_TIME:
@@ -560,11 +679,6 @@ class AccommodationService:
                 result = self.evaluate_models(
                     accommodation_type=accommodation_type, ctx=eval_ctx,
                 )
-                if not result.has_accommodation:
-                    logger.debug(
-                        "no accommodation: user_id=%d quiz_id=%d type=%s engine=new",
-                        participant.user_id, ctx.quiz_id, accommodation_type.value,
-                    )
                 completed = submission.date == "past" if submission else None
                 attempts_left = submission.attempts_left if submission else None
                 rows.append(AuditRow(
@@ -578,13 +692,13 @@ class AccommodationService:
                     details=result.details,
                     completed=completed,
                     attempts_left=attempts_left,
+                    enrollment_term_id=enrollment_term_id,
                     course_name=course_name,
                     course_code=course_code,
                     sis_course_id=sis_course_id,
                     quiz_title=quiz_title,
                     quiz_due_at=quiz_due_at,
                     quiz_lock_at=quiz_lock_at,
-                    enrollment_term_id=enrollment_term_id,
                 ))
             return rows
 
@@ -596,11 +710,6 @@ class AccommodationService:
             result = self.evaluate_models(
                 accommodation_type=accommodation_type, ctx=eval_ctx,
             )
-            if not result.has_accommodation:
-                logger.debug(
-                    "no accommodation: user_id=%d quiz_id=%d type=%s engine=%s",
-                    submission.user_id, ctx.quiz_id, accommodation_type.value, ctx.engine,
-                )
             rows.append(AuditRow(
                 course_id=ctx.course_id,
                 quiz_id=ctx.quiz_id,
@@ -612,13 +721,13 @@ class AccommodationService:
                 details=result.details,
                 completed=submission.date == "past",
                 attempts_left=submission.attempts_left,
+                enrollment_term_id=enrollment_term_id,
                 course_name=course_name,
                 course_code=course_code,
                 sis_course_id=sis_course_id,
                 quiz_title=quiz_title,
                 quiz_due_at=quiz_due_at,
                 quiz_lock_at=quiz_lock_at,
-                enrollment_term_id=enrollment_term_id,
             ))
 
         return rows
@@ -665,8 +774,10 @@ class AccommodationService:
         if participant is None:
             return AccommodationResult(False, {})
         has = (
-            (participant.timer_multiplier_enabled and (participant.timer_multiplier_value or 0) > 1)
-            or (participant.extra_time_enabled and (participant.extra_time_in_seconds or 0) > 0)
+            (participant.timer_multiplier_enabled
+             and (participant.timer_multiplier_value or 0) > 1)
+            or (participant.extra_time_enabled
+                and (participant.extra_time_in_seconds or 0) > 0)
         )
         return AccommodationResult(has, {
             "timer_multiplier_value": participant.timer_multiplier_value,
@@ -686,3 +797,36 @@ class AccommodationService:
             return AccommodationResult(False, {})
         has = (submission.extra_attempts or 0) > 0
         return AccommodationResult(has, {"extra_attempts": submission.extra_attempts})
+
+
+# ---------------------------------------------------------------------------
+# Module-level helpers
+# ---------------------------------------------------------------------------
+
+def _placeholder_course(course_id: int) -> Course:
+    """
+    Build a minimal Course object when the full course data is unavailable.
+
+    Used when audit_quiz or audit_accommodation is called without a
+    pre-fetched Course (e.g. in spot-check scenarios or from JsonRepo).
+    Bucket 1 fields will be empty in the resulting rows.
+    """
+    return Course(
+        course_id=course_id,
+        name="",
+        course_code=None,
+        sis_course_id=None,
+        enrollment_term_id=None,
+    )
+
+
+def _filter_user(rows: list[AuditRow], user_id: int) -> list[AuditRow]:
+    """
+    Return only rows belonging to *user_id*.
+
+    Spell-check rows have ``user_id=None`` (they are item-level, not
+    user-level) and are excluded from user-scoped results — this is
+    correct behaviour since spell-check is a quiz configuration setting,
+    not a per-student accommodation.
+    """
+    return [r for r in rows if r.user_id == user_id]

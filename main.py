@@ -12,14 +12,26 @@ Audit a single course, classic engine only:
 Audit a specific quiz, extra time only:
     python main.py audit --quiz 48379 --engine new --types extra_time
 
+Audit all quizzes for a specific user across all enrollments:
+    python main.py audit --user 99118
+
+Audit a specific user in a specific term:
+    python main.py audit --user 99118 --term 117
+
+Audit a specific user in a specific course:
+    python main.py audit --user 99118 --course 12977
+
 Force a cache refresh for quizzes before auditing:
     python main.py audit --term 117 --refresh-entity quizzes
 
 Inspect cache stats without running an audit:
     python main.py cache-stats
 
-Scope flags are mutually exclusive — supply exactly one of
---term, --course, or --quiz.
+Scope rules
+-----------
+Without --user: supply exactly one of --term, --course, or --quiz.
+With --user:    --user alone is valid, or combine with one of
+                --term, --course, or --quiz.
 """
 
 import asyncio
@@ -79,8 +91,10 @@ def _fmt_elapsed(seconds: float) -> str:
 
 async def _run_audit(
     *,
-    scope: str,
-    scope_id: int,
+    user_id: int | None,
+    term_id: int | None,
+    course_id: int | None,
+    quiz_id: int | None,
     engines: list[str],
     types: list[AccommodationType],
     output_path: Path,
@@ -92,7 +106,7 @@ async def _run_audit(
 
     Pipeline:
         1. Audit  — AccommodationService produces raw AuditRow list
-        2. Enrich — Enricher fills in term_name (and future user fields)
+        2. Enrich — Enricher fills in term_name, user_name, sis_user_id
         3. Write  — write_xlsx produces the Excel report
     """
     audit_start = time.perf_counter()
@@ -111,27 +125,38 @@ async def _run_audit(
             persistent_cache=persistent_cache,
         )
         svc = AccommodationService(repo)
-        enricher = Enricher(repo=repo)
+        enricher = Enricher(repo=repo, show_progress=show_progress)
 
         tasks = []
         for eng in engines:
-            if scope == "term":
+            if user_id is not None:
+                # User-scoped audit: use enrollments to narrow courses
+                tasks.append(svc.audit_user(
+                    user_id=user_id,
+                    engine=eng,
+                    accommodation_types=types,
+                    term_id=term_id,
+                    course_id=course_id,
+                    quiz_id=quiz_id,
+                    show_progress=show_progress,
+                ))
+            elif term_id is not None:
                 tasks.append(svc.audit_term(
-                    term_id=scope_id,
+                    term_id=term_id,
                     engine=eng,
                     accommodation_types=types,
                     show_progress=show_progress,
                 ))
-            elif scope == "course":
+            elif course_id is not None:
                 tasks.append(svc.audit_course(
-                    course_id=scope_id,
+                    course_id=course_id,
                     engine=eng,
                     accommodation_types=types,
                 ))
-            elif scope == "quiz":
+            elif quiz_id is not None:
                 tasks.append(svc.audit_quiz(
-                    course_id=scope_id,
-                    quiz_id=scope_id,
+                    course_id=quiz_id,   # placeholder until quiz-scoped DAG
+                    quiz_id=quiz_id,
                     engine=eng,
                     accommodation_types=types,
                 ))
@@ -139,7 +164,7 @@ async def _run_audit(
         results = await asyncio.gather(*tasks)
         rows = [row for engine_rows in results for row in engine_rows]
 
-        # Enrich rows with term names (and future user data)
+        # Enrich with term names and user display data
         rows = await enricher.enrich(rows)
 
     audit_elapsed = _fmt_elapsed(time.perf_counter() - audit_start)
@@ -171,9 +196,14 @@ def cli() -> None:
 
 
 @cli.command()
-@click.option("--term",   "term_id",   type=int, default=None, help="Canvas enrollment term ID.")
-@click.option("--course", "course_id", type=int, default=None, help="Canvas course ID.")
-@click.option("--quiz",   "quiz_id",   type=int, default=None, help="Canvas quiz or assignment ID.")
+@click.option("--term",   "term_id",   type=int, default=None,
+              help="Canvas enrollment term ID.")
+@click.option("--course", "course_id", type=int, default=None,
+              help="Canvas course ID.")
+@click.option("--quiz",   "quiz_id",   type=int, default=None,
+              help="Canvas quiz or assignment ID.")
+@click.option("--user",   "user_id",   type=int, default=None,
+              help="Canvas user ID. Can be combined with --term, --course, or --quiz.")
 @click.option(
     "--engine",
     type=click.Choice(["new", "classic", "all"], case_sensitive=False),
@@ -200,12 +230,15 @@ def cli() -> None:
     default=None,
     help="Invalidate a cache entity type before running (forces re-fetch).",
 )
-@click.option("--debug",       is_flag=True, default=False, help="Enable DEBUG log level.")
-@click.option("--no-progress", is_flag=True, default=False, help="Disable progress bars.")
+@click.option("--debug",       is_flag=True, default=False,
+              help="Enable DEBUG log level.")
+@click.option("--no-progress", is_flag=True, default=False,
+              help="Disable progress bars.")
 def audit(
     term_id: int | None,
     course_id: int | None,
     quiz_id: int | None,
+    user_id: int | None,
     engine: str,
     types: tuple[str, ...],
     output: Path | None,
@@ -216,13 +249,17 @@ def audit(
     """
     Run an accommodation audit and write results to Excel.
 
-    Supply exactly one scope flag: --term, --course, or --quiz.
+    Without --user: supply exactly one of --term, --course, or --quiz.
+    With --user:    --user alone is valid, or combine with one optional
+                    scope flag (--term, --course, or --quiz).
 
     \b
     Examples:
         python main.py audit --term 117
         python main.py audit --course 12977 --engine classic
-        python main.py audit --quiz 48379 --engine new --types extra_time
+        python main.py audit --user 99118
+        python main.py audit --user 99118 --term 117
+        python main.py audit --user 99118 --course 12977
         python main.py audit --term 117 --refresh-entity quizzes
     """
     log_level = logging.DEBUG if debug else logging.WARNING
@@ -231,15 +268,36 @@ def audit(
         click.echo(f"Debug logging → {log_file}")
 
     # --- Validate scope ---
-    scope_args = {"term": term_id, "course": course_id, "quiz": quiz_id}
-    provided = {k: v for k, v in scope_args.items() if v is not None}
-    if len(provided) == 0:
-        raise click.UsageError("Supply exactly one scope flag: --term, --course, or --quiz.")
-    if len(provided) > 1:
-        raise click.UsageError(
-            f"Supply exactly one scope flag — got: {', '.join(f'--{k}' for k in provided)}."
-        )
-    scope, scope_id = next(iter(provided.items()))
+    scope_args = {
+        "term":   term_id,
+        "course": course_id,
+        "quiz":   quiz_id,
+    }
+    provided_scopes = {k: v for k, v in scope_args.items() if v is not None}
+
+    if user_id is not None:
+        # With --user: zero or one scope modifier is valid
+        if len(provided_scopes) > 1:
+            raise click.UsageError(
+                f"--user can be combined with at most one scope flag — got: "
+                f"{', '.join(f'--{k}' for k in provided_scopes)}."
+            )
+        if quiz_id is not None and course_id is None:
+            raise click.UsageError(
+                "--quiz requires --course when used with --user."
+            )
+    else:
+        # Without --user: exactly one scope required
+        if len(provided_scopes) == 0:
+            raise click.UsageError(
+                "Supply exactly one scope flag: --term, --course, or --quiz. "
+                "Or use --user to audit a specific student."
+            )
+        if len(provided_scopes) > 1:
+            raise click.UsageError(
+                f"Supply exactly one scope flag — got: "
+                f"{', '.join(f'--{k}' for k in provided_scopes)}."
+            )
 
     # --- Persistent cache ---
     persistent_cache = PersistentCache(_CACHE_DIR)
@@ -255,8 +313,17 @@ def audit(
     output_path = output or _default_output_path()
     show_progress = not no_progress
 
+    # --- Announce ---
+    scope_desc = (
+        f"user={user_id}"
+        + (f" term={term_id}" if term_id else "")
+        + (f" course={course_id}" if course_id else "")
+        + (f" quiz={quiz_id}" if quiz_id else "")
+        if user_id is not None
+        else next(f"{k}={v}" for k, v in provided_scopes.items())
+    )
     click.echo(
-        f"Auditing {scope}={scope_id} | "
+        f"Auditing {scope_desc} | "
         f"engine={engine} | "
         f"types={list(types or _TYPE_MAP.keys())} | "
         f"output={output_path}"
@@ -264,8 +331,10 @@ def audit(
 
     asyncio.run(
         _run_audit(
-            scope=scope,
-            scope_id=scope_id,
+            user_id=user_id,
+            term_id=term_id,
+            course_id=course_id,
+            quiz_id=quiz_id,
             engines=engines,
             types=accommodation_types,
             output_path=output_path,
@@ -282,11 +351,17 @@ def cache_stats() -> None:
     stats = cache.stats()
 
     click.echo(f"\nCache directory: {_CACHE_DIR.resolve()}\n")
-    click.echo(f"{'Entity':<10} {'Total':>7} {'Valid':>7} {'Expired':>9} {'TTL':>10}")
+    click.echo(
+        f"{'Entity':<10} {'Total':>7} {'Valid':>7} {'Expired':>9} {'TTL':>10}"
+    )
     click.echo("-" * 48)
     for entity, info in stats.items():
         ttl_hours = info["ttl_hours"]
-        ttl_str = f"{int(ttl_hours)}h" if ttl_hours < 24 else f"{int(ttl_hours // 24)}d"
+        ttl_str = (
+            f"{int(ttl_hours)}h"
+            if ttl_hours < 24
+            else f"{int(ttl_hours // 24)}d"
+        )
         click.echo(
             f"{entity:<10} {info['total']:>7} {info['valid']:>7} "
             f"{info['expired']:>9} {ttl_str:>10}"

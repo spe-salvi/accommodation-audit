@@ -55119,6 +55119,196 @@
         "locale": null
       },
       "cached_at": "2026-04-01T14:14:50.118906+00:00"
+    },
+    "16876": {
+      "data": {
+        "id": 16876,
+        "name": "Kristjana Paljusaj",
+        "short_name": "Kristjana Paljusaj",
+        "sortable_name": "Paljusaj, Kristjana",
+        "sis_user_id": "2638887",
+        "avatar_url": "https://franciscan.instructure.com/images/messages/avatar-50.png",
+        "integration_id": null,
+        "title": null,
+        "bio": null,
+        "pronunciation": null,
+        "primary_email": "kpaljusaj001@student.franciscan.edu",
+        "login_id": "kpaljusaj001",
+        "time_zone": "America/New_York",
+        "locale": null
+      },
+      "cached_at": "2026-04-02T14:12:39.156046+00:00"
+    },
+    "8497": {
+      "data": {
+        "id": 8497,
+        "name": "Kay Vazquez",
+        "short_name": "Kay Vazquez",
+        "sortable_name": "Vazquez, Kay",
+        "sis_user_id": "2630445",
+        "avatar_url": "https://franciscan.instructure.com/images/thumbnails/1239447/TTTFgYYrkU508unwdklJcV3REUN5u8PdP0p6qDZq",
+        "integration_id": null,
+        "title": null,
+        "bio": null,
+        "pronunciation": null,
+        "primary_email": "avazquez001@student.franciscan.edu",
+        "login_id": "avazquez001",
+        "time_zone": "America/New_York",
+        "locale": null
+      },
+      "cached_at": "2026-04-02T14:12:39.297591+00:00"
+    },
+    "328": {
+      "data": {
+        "id": 328,
+        "name": "Austin Naset",
+        "short_name": "Austin Naset",
+        "sortable_name": "Naset, Austin",
+        "sis_user_id": "2609603",
+        "avatar_url": "https://franciscan.instructure.com/images/messages/avatar-50.png",
+        "integration_id": null,
+        "title": null,
+        "bio": null,
+        "pronunciation": null,
+        "primary_email": "ANaset@franciscan.edu",
+        "login_id": "ANaset",
+        "time_zone": "America/New_York",
+        "locale": null
+      },
+      "cached_at": "2026-04-02T14:12:39.422583+00:00"
+    },
+    "350": {
+      "data": {
+        "id": 350,
+        "name": "Angela Cartland",
+        "short_name": "Angela Cartland",
+        "sortable_name": "Cartland, Angela",
+        "sis_user_id": "2622048",
+        "avatar_url": "https://franciscan.instructure.com/images/thumbnails/872531/ytsixitXCUeNSQJK7x7cogIl485v8TR5HIe8N8u6",
+        "integration_id": null,
+        "title": null,
+        "bio": null,
+        "pronunciation": null,
+        "primary_email": "acartland001@student.franciscan.edu",
+        "login_id": "acartland001",
+        "time_zone": "America/New_York",
+        "locale": null
+      },
+      "cached_at": "2026-04-02T14:12:39.540548+00:00"
+    },
+    "523": {
+      "data": {
+        "id": 523,
+        "name": "Bryan Wells",
+        "short_name": "Bryan Wells",
+        "sortable_name": "Wells, Bryan",
+        "sis_user_id": "2514322",
+        "avatar_url": "https://franciscan.instructure.com/images/thumbnails/124340/1rrF1v4KmycQlcBuUPFQMsxOTH6DyrhU81kahkdd",
+        "integration_id": null,
+        "title": null,
+        "bio": "I have called Steubenville home for 8+ years (four of them as a student) and now have the privilege of raising my family in a supporting, Catholic environment. Married to Megan and together we have two girls, Avila (3), and Magdalene (1). Currently, I am working for the Youth Conference Office as the Manager of Youth Programming",
+        "pronunciation": null,
+        "primary_email": "BWells@franciscan.edu",
+        "login_id": "BWells",
+        "time_zone": "America/New_York",
+        "locale": null
+      },
+      "cached_at": "2026-04-02T14:12:39.660747+00:00"
+    },
+    "9886": {
+      "data": {
+        "id": 9886,
+        "name": "Abigail Savage",
+        "short_name": "Abigail Savage",
+        "sortable_name": "Savage, Abigail",
+        "sis_user_id": "2631246",
+        "avatar_url": "https://franciscan.instructure.com/images/messages/avatar-50.png",
+        "integration_id": null,
+        "title": null,
+        "bio": null,
+        "pronunciation": null,
+        "primary_email": "asavage002@student.franciscan.edu",
+        "login_id": "asavage002",
+        "time_zone": "America/New_York",
+        "locale": null
+      },
+      "cached_at": "2026-04-02T14:12:39.795557+00:00"
+    },
+    "360": {
+      "data": {
+        "id": 360,
+        "name": "Joshua Stiller",
+        "short_name": "Joshua Stiller",
+        "sortable_name": "Stiller, Joshua",
+        "sis_user_id": "2589985",
+        "avatar_url": "https://franciscan.instructure.com/images/thumbnails/986663/zECMJZHQUhxDn2OHBVj9rkQFe1hQ7V8ZK6qiZOBJ",
+        "integration_id": null,
+        "title": null,
+        "bio": null,
+        "pronunciation": null,
+        "primary_email": "jstiller001@student.franciscan.edu",
+        "login_id": "jstiller001",
+        "time_zone": "America/New_York",
+        "locale": null
+      },
+      "cached_at": "2026-04-02T14:12:39.928512+00:00"
+    },
+    "12092": {
+      "data": {
+        "id": 12092,
+        "name": "Carlos Latorre",
+        "short_name": "Carlos Latorre",
+        "sortable_name": "Latorre, Carlos",
+        "sis_user_id": "2632977",
+        "avatar_url": "https://franciscan.instructure.com/images/messages/avatar-50.png",
+        "integration_id": null,
+        "title": null,
+        "bio": null,
+        "pronunciation": null,
+        "primary_email": "clatorre001@student.franciscan.edu",
+        "login_id": "clatorre001",
+        "time_zone": "America/New_York",
+        "locale": null
+      },
+      "cached_at": "2026-04-02T14:12:40.062588+00:00"
+    },
+    "8579": {
+      "data": {
+        "id": 8579,
+        "name": "Max Montana",
+        "short_name": "Max Montana",
+        "sortable_name": "Montana, Max",
+        "sis_user_id": "2629511",
+        "avatar_url": "https://franciscan.instructure.com/images/thumbnails/541869/DJLfgRsFtzV8Qaoy99eF4YB7PH1rxNRpOutjEza0",
+        "integration_id": null,
+        "title": null,
+        "bio": null,
+        "pronunciation": null,
+        "primary_email": "mmontana001@student.franciscan.edu",
+        "login_id": "mmontana001",
+        "time_zone": "America/New_York",
+        "locale": null
+      },
+      "cached_at": "2026-04-02T14:12:40.193641+00:00"
+    },
+    "8730": {
+      "data": {
+        "id": 8730,
+        "name": "Elizabeth San Miguel",
+        "short_name": "Elizabeth San Miguel",
+        "sortable_name": "San Miguel, Elizabeth",
+        "sis_user_id": "2630362",
+        "avatar_url": "https://franciscan.instructure.com/images/messages/avatar-50.png",
+        "integration_id": null,
+        "title": null,
+        "bio": null,
+        "pronunciation": null,
+        "primary_email": "esanmiguel001@student.franciscan.edu",
+        "login_id": "esanmiguel001",
+        "time_zone": "America/New_York",
+        "locale": null
+      },
+      "cached_at": "2026-04-02T14:12:40.338964+00:00"
     }
   }
 }
