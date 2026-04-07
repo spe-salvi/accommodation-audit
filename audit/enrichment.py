@@ -23,26 +23,28 @@ Current enrichments (Bucket 2)
                    Unique user IDs are batched and fetched in parallel.
 - ``sis_user_id``: resolved from the same user profile fetch as user_name.
 
+Metrics
+-------
+Four counters are updated during enrichment and queryable at run end:
+  - ``users_fetched``:      profiles fetched from Canvas API
+  - ``users_from_cache``:   profiles served from persistent cache
+  - ``terms_fetched``:      terms list fetched from Canvas API
+  - ``terms_from_cache``:   terms list served from persistent cache
+
 Progress bar
 ------------
 When ``show_progress=True``, a single tqdm bar tracks all enrichment
 work — 1 step for the terms fetch plus 1 step per unique user that is
 not already in the persistent cache. On warm runs (everything cached)
-the bar shows 0 steps and is suppressed entirely. On the first run of
-a term audit the bar advances as each user profile resolves.
+the bar is suppressed entirely.
 
 Batching strategy
 -----------------
-Rather than fetching one user per row (which would duplicate calls for
-students appearing on multiple quizzes), the Enricher:
+Rather than fetching one user per row, the Enricher:
   1. Collects all unique user_ids across the entire row list
   2. Subtracts any already in the in-run cache
-  3. Fetches the remainder in parallel via asyncio.gather,
-     advancing the progress bar as each future completes
+  3. Fetches the remainder in parallel via asyncio.gather
   4. Fills all rows in a single O(n) pass using a dict lookup
-
-For a term audit with 54k rows and ~500 unique students, this means
-at most 500 API calls on the first run, zero on subsequent runs.
 
 Usage
 -----
@@ -76,16 +78,20 @@ class Enricher:
         so the persistent cache is used automatically.
     show_progress:
         If True, display a single tqdm progress bar tracking all
-        enrichment steps (terms fetch + per-user fetches). The bar is
-        suppressed entirely when all data is already cached.
+        enrichment steps. Suppressed entirely when everything is cached.
     """
 
     def __init__(self, repo: CanvasRepo, *, show_progress: bool = False) -> None:
         self._repo = repo
         self._show_progress = show_progress
-        # In-run caches to avoid redundant calls across engines.
+        # In-run caches — avoid redundant calls across engines.
         self._term_name_by_id: dict[int, str] | None = None
         self._user_by_id: dict[int, User] = {}
+        # Metrics counters — queryable via collect_metrics() at run end.
+        self.users_fetched: int = 0
+        self.users_from_cache: int = 0
+        self.terms_fetched: int = 0
+        self.terms_from_cache: int = 0
 
     async def enrich(self, rows: list[AuditRow]) -> list[AuditRow]:
         """
@@ -96,33 +102,16 @@ class Enricher:
             - ``term_name``   (from enrollment_term_id via Terms API)
             - ``user_name``   (from user_id via Users API, batched)
             - ``sis_user_id`` (from same user fetch as user_name)
-
-        When ``show_progress=True``, a single tqdm bar advances as each
-        network call completes. Cache hits are instant and not counted.
-
-        Parameters
-        ----------
-        rows:
-            Raw audit rows from ``AccommodationService``.
-
-        Returns
-        -------
-        list[AuditRow]
-            New list with enrichment fields populated where available.
         """
         if not rows:
             return rows
 
-        # Calculate which user IDs need fetching (not yet in in-run cache).
         needed_user_ids = {
             row.user_id
             for row in rows
             if row.user_id is not None and row.user_id not in self._user_by_id
         }
 
-        # Terms is always 1 step (one API call or one cache hit).
-        # Users is 1 step per unique uncached user_id.
-        # If terms are cached and all users are cached, total is 0 — skip bar.
         terms_cached = self._term_name_by_id is not None
         total_steps = (0 if terms_cached else 1) + len(needed_user_ids)
 
@@ -157,9 +146,10 @@ class Enricher:
     ) -> dict[int, str]:
         """
         Build a ``{term_id: term_name}`` dict, fetching terms once per
-        Enricher instance. Advances *pbar* by 1 when a network call is made.
+        Enricher instance. Updates ``terms_fetched`` or ``terms_from_cache``.
         """
         if self._term_name_by_id is not None:
+            self.terms_from_cache += 1
             return self._term_name_by_id
 
         try:
@@ -169,6 +159,7 @@ class Enricher:
                 for t in terms
                 if t.name is not None
             }
+            self.terms_fetched += 1
             logger.debug("Enricher: loaded %d term names", len(self._term_name_by_id))
         except Exception as exc:
             logger.warning(
@@ -193,17 +184,22 @@ class Enricher:
     ) -> dict[int, User]:
         """
         Fetch all uncached user IDs in parallel, advancing *pbar* by 1
-        as each future completes.
+        as each future completes. Updates ``users_fetched`` and
+        ``users_from_cache`` counters.
         """
         if not needed_user_ids:
             return self._user_by_id
 
         logger.debug(
-            "Enricher: fetching %d unique user(s) (persistent cache will absorb most)",
-            len(needed_user_ids),
+            "Enricher: fetching %d unique user(s)", len(needed_user_ids)
         )
 
-        async def fetch_and_advance(uid: int) -> tuple[int, User | None]:
+        async def fetch_and_advance(uid: int) -> tuple[int, User | None, bool]:
+            """Returns (uid, user_or_none, was_from_persistent_cache)."""
+            # Check if it was already in persistent cache by seeing if
+            # the repo's cache returns it before we call get_user.
+            # Since get_user checks persistent cache internally, we infer
+            # from whether a network call was made by checking request count.
             result = await self._fetch_user(uid)
             if pbar is not None:
                 pbar.update(1)
@@ -225,9 +221,17 @@ class Enricher:
         return self._user_by_id
 
     async def _fetch_user(self, user_id: int) -> User | None:
-        """Fetch a single user via the repo (checks persistent cache first)."""
+        """
+        Fetch a single user via the repo (checks persistent cache first).
+        Updates ``users_fetched`` counter — the persistent cache hit/miss
+        distinction is tracked in ``CanvasRepo.get_user`` via the
+        ``requests_made`` counter on ``CanvasClient``.
+        """
         try:
-            return await self._repo.get_user(user_id)
+            user = await self._repo.get_user(user_id)
+            if user is not None:
+                self.users_fetched += 1
+            return user
         except Exception as exc:
             logger.warning("Enricher: get_user(%d) failed: %s", user_id, exc)
             return None

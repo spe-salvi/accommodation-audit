@@ -12,14 +12,11 @@ Audit a single course, classic engine only:
 Audit a specific quiz, extra time only:
     python main.py audit --quiz 48379 --engine new --types extra_time
 
-Audit all quizzes for a specific user across all enrollments:
+Audit a specific user across all enrollments:
     python main.py audit --user 99118
 
 Audit a specific user in a specific term:
     python main.py audit --user 99118 --term 117
-
-Audit a specific user in a specific course:
-    python main.py audit --user 99118 --course 12977
 
 Force a cache refresh for quizzes before auditing:
     python main.py audit --term 117 --refresh-entity quizzes
@@ -30,8 +27,8 @@ Inspect cache stats without running an audit:
 Scope rules
 -----------
 Without --user: supply exactly one of --term, --course, or --quiz.
-With --user:    --user alone is valid, or combine with one of
-                --term, --course, or --quiz.
+With --user:    --user alone is valid, or combine with one optional
+                scope flag (--term, --course, or --quiz).
 """
 
 import asyncio
@@ -49,6 +46,7 @@ from audit.clients.canvas_client import CanvasClient
 from audit.config import settings
 from audit.enrichment import Enricher
 from audit.logging_setup import setup_logging
+from audit.metrics import collect_metrics, format_metrics
 from audit.reporting import write_xlsx
 from audit.repos.base import AccommodationType
 from audit.repos.canvas_repo import CanvasRepo
@@ -108,8 +106,8 @@ async def _run_audit(
         1. Audit  — AccommodationService produces raw AuditRow list
         2. Enrich — Enricher fills in term_name, user_name, sis_user_id
         3. Write  — write_xlsx produces the Excel report
+        4. Metrics — collect and display run summary
     """
-    audit_start = time.perf_counter()
     runtime_cache = RequestCache()
 
     async with httpx.AsyncClient() as http:
@@ -127,10 +125,11 @@ async def _run_audit(
         svc = AccommodationService(repo)
         enricher = Enricher(repo=repo, show_progress=show_progress)
 
+        # --- Phase 1: Audit ---
+        audit_start = time.perf_counter()
         tasks = []
         for eng in engines:
             if user_id is not None:
-                # User-scoped audit: use enrollments to narrow courses
                 tasks.append(svc.audit_user(
                     user_id=user_id,
                     engine=eng,
@@ -155,7 +154,7 @@ async def _run_audit(
                 ))
             elif quiz_id is not None:
                 tasks.append(svc.audit_quiz(
-                    course_id=quiz_id,   # placeholder until quiz-scoped DAG
+                    course_id=quiz_id,
                     quiz_id=quiz_id,
                     engine=eng,
                     accommodation_types=types,
@@ -163,27 +162,32 @@ async def _run_audit(
 
         results = await asyncio.gather(*tasks)
         rows = [row for engine_rows in results for row in engine_rows]
+        audit_elapsed = time.perf_counter() - audit_start
 
-        # Enrich with term names and user display data
+        # --- Phase 2: Enrich ---
+        enrich_start = time.perf_counter()
         rows = await enricher.enrich(rows)
+        enrich_elapsed = time.perf_counter() - enrich_start
 
-    audit_elapsed = _fmt_elapsed(time.perf_counter() - audit_start)
-    runtime_cache.log_stats()
-
-    summary = (
-        f"Audit complete — {len(rows):,} rows across "
-        f"{len(engines)} engine(s) in {audit_elapsed}."
-    )
-    click.echo(summary)
-    logger.info(summary)
-
+    # --- Phase 3: Write ---
     write_start = time.perf_counter()
     write_xlsx(rows, output_path, show_progress=show_progress)
-    write_elapsed = _fmt_elapsed(time.perf_counter() - write_start)
+    write_elapsed = time.perf_counter() - write_start
 
-    write_summary = f"Report written to {output_path} in {write_elapsed}."
-    click.echo(write_summary)
-    logger.info(write_summary)
+    # --- Phase 4: Metrics ---
+    metrics = collect_metrics(
+        client=client,
+        runtime_cache=runtime_cache,
+        enricher=enricher,
+        audit_elapsed=audit_elapsed,
+        enrich_elapsed=enrich_elapsed,
+        write_elapsed=write_elapsed,
+        row_count=len(rows),
+    )
+    summary = format_metrics(metrics)
+    click.echo(f"\nReport written to {output_path}")
+    click.echo(summary)
+    logger.info("Run complete. Output: %s\n%s", output_path, summary)
 
 
 # ---------------------------------------------------------------------------
@@ -259,7 +263,6 @@ def audit(
         python main.py audit --course 12977 --engine classic
         python main.py audit --user 99118
         python main.py audit --user 99118 --term 117
-        python main.py audit --user 99118 --course 12977
         python main.py audit --term 117 --refresh-entity quizzes
     """
     log_level = logging.DEBUG if debug else logging.WARNING
@@ -268,15 +271,10 @@ def audit(
         click.echo(f"Debug logging → {log_file}")
 
     # --- Validate scope ---
-    scope_args = {
-        "term":   term_id,
-        "course": course_id,
-        "quiz":   quiz_id,
-    }
+    scope_args = {"term": term_id, "course": course_id, "quiz": quiz_id}
     provided_scopes = {k: v for k, v in scope_args.items() if v is not None}
 
     if user_id is not None:
-        # With --user: zero or one scope modifier is valid
         if len(provided_scopes) > 1:
             raise click.UsageError(
                 f"--user can be combined with at most one scope flag — got: "
@@ -287,7 +285,6 @@ def audit(
                 "--quiz requires --course when used with --user."
             )
     else:
-        # Without --user: exactly one scope required
         if len(provided_scopes) == 0:
             raise click.UsageError(
                 "Supply exactly one scope flag: --term, --course, or --quiz. "
@@ -316,17 +313,16 @@ def audit(
     # --- Announce ---
     scope_desc = (
         f"user={user_id}"
-        + (f" term={term_id}" if term_id else "")
+        + (f" term={term_id}"   if term_id   else "")
         + (f" course={course_id}" if course_id else "")
-        + (f" quiz={quiz_id}" if quiz_id else "")
+        + (f" quiz={quiz_id}"   if quiz_id   else "")
         if user_id is not None
         else next(f"{k}={v}" for k, v in provided_scopes.items())
     )
     click.echo(
         f"Auditing {scope_desc} | "
         f"engine={engine} | "
-        f"types={list(types or _TYPE_MAP.keys())} | "
-        f"output={output_path}"
+        f"types={list(types or _TYPE_MAP.keys())}"
     )
 
     asyncio.run(

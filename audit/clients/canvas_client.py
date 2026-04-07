@@ -8,13 +8,18 @@ retry on transient failures, and optional in-memory response caching.
 This module owns transport concerns only. Domain exceptions from
 ``audit.exceptions`` are raised so callers never need to import httpx.
 
+Metrics
+-------
+``requests_made`` counts actual HTTP requests (cache misses only).
+``retries_fired`` counts how many retry attempts were triggered across
+all requests in this client's lifetime. Both are queryable at any time
+and used by ``audit.metrics.collect_metrics()`` at run end.
+
 Caching
 -------
 An optional ``RequestCache`` can be injected at construction. When
 present, successful responses are stored by (url, params) and served
-from cache on subsequent identical requests. This eliminates redundant
-API calls within a single audit run — useful when multiple quizzes in
-a course share submission or participant data.
+from cache on subsequent identical requests.
 
 Retry behaviour
 ---------------
@@ -28,17 +33,6 @@ Exceptions raised
 RateLimitError    HTTP 429 after all retries exhausted
 CanvasApiError    Any other non-2xx HTTP response after retries
 AuditError        Wraps unexpected transport-level failures
-
-Usage:
-    cache = RequestCache()
-    async with httpx.AsyncClient() as http:
-        client = CanvasClient(
-            base_url="https://canvas.university.edu",
-            token="your_api_token",
-            http=http,
-            cache=cache,
-        )
-        courses = await client.get_paginated_json("/api/v1/courses")
 """
 from __future__ import annotations
 
@@ -64,6 +58,7 @@ class CanvasClient:
       - Automatic retry on transient failures via ``@retryable``
       - Optional response caching via ``RequestCache``
       - Domain exception wrapping so callers stay httpx-free
+      - ``requests_made`` and ``retries_fired`` counters for metrics
 
     Parameters
     ----------
@@ -90,6 +85,9 @@ class CanvasClient:
         self._headers = {"Authorization": f"Bearer {token}"}
         self._http = http
         self._cache = cache
+        # Metrics counters — queryable at run end via collect_metrics().
+        self.requests_made: int = 0
+        self.retries_fired: int = 0
 
     # ------------------------------------------------------------------
     # Public interface
@@ -182,10 +180,15 @@ class CanvasClient:
         """
         Issue a single GET request by full URL with retry on transient failures.
 
+        Increments ``requests_made`` on every actual HTTP call.
+        Increments ``retries_fired`` when a retryable error is caught —
+        this fires before the delay, so it counts attempts not completions.
+
         Wraps httpx exceptions in domain exceptions after all retries
         are exhausted so callers never need to import httpx.
         """
-        logger.debug("GET %s", url)
+        self.requests_made += 1
+        logger.debug("GET %s (request #%d)", url, self.requests_made)
         try:
             response = await self._http.get(url, headers=self._headers, params=params)
             response.raise_for_status()
@@ -194,6 +197,7 @@ class CanvasClient:
         except httpx.HTTPStatusError as exc:
             status = exc.response.status_code
             if status == 429:
+                self.retries_fired += 1
                 retry_after_raw = exc.response.headers.get("retry-after")
                 retry_after = float(retry_after_raw) if retry_after_raw else None
                 raise RateLimitError(
@@ -201,12 +205,15 @@ class CanvasClient:
                     url=url,
                     retry_after=retry_after,
                 ) from exc
+            if status in (500, 502, 503, 504):
+                self.retries_fired += 1
             raise CanvasApiError(
                 "Canvas API request failed",
                 status_code=status,
                 url=url,
             ) from exc
         except httpx.TransportError as exc:
+            self.retries_fired += 1
             raise AuditError(
                 f"Network error reaching Canvas: {exc}"
             ) from exc
