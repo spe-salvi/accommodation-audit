@@ -12,7 +12,9 @@ As an Instructional Technologist and LMS administrator, I discovered three compo
 2. **No existing tooling.** Canvas has no built-in accommodation audit report. The data needed to verify accommodations lives across several different API endpoints — some of which behave differently for "classic" vs. "new" quizzes.
 3. **Real compliance gaps.** Students were not always receiving the accommodations they were entitled to, and there was no systematic way to catch it before (or after) the fact.
 
-This tool automates the entire audit: it pulls participant, submission, quiz, and item-level data from Canvas, evaluates each student's accommodation status against the configured settings, and produces a structured audit report that can span a single quiz, a course, or an entire term.
+This tool automates the entire audit: it pulls participant, submission, quiz, and item-level data from Canvas, evaluates each student's accommodation status, and produces a structured Excel report that can span a single quiz, a course, a term, or a single student's full enrollment history.
+
+---
 
 ## Architecture
 
@@ -20,267 +22,340 @@ The system follows a layered architecture with clear separation of concerns:
 
 ```
 ┌──────────────────────────────────────────────────────────┐
-│                    Runner / Planner                       │  Orchestration
-│  Plans audit work, coordinates execution across entities  │
-└────────────────────────┬─────────────────────────────────┘
-                         │ delegates to
-┌────────────────────────▼─────────────────────────────────┐
-│           AccommodationService  /  Tasks                  │  Business Logic
-│  Evaluates accommodations, builds audit rows              │
-└────────────────────────┬─────────────────────────────────┘
-                         │ reads via
-┌────────────────────────▼─────────────────────────────────┐
-│              AccommodationRepo (Protocol)                  │  Data Access
-│  Abstract interface — callers never know the data source  │
-├──────────────┬───────────────────────────────────────────┤
-│  CanvasRepo  │            JsonRepo                        │  Implementations
-│  (live API)  │       (local JSON files)                   │
-└──────┬───────┴───────────────────────────────────────────┘
-       │ uses
-┌──────▼──────────────────┐     ┌──────────────────────────┐
-│     CanvasClient        │     │        Cache              │
-│  Auth, pagination,      │     │  Runtime + TTL-based      │
-│  response unwrapping    │     │  persistent caching       │
-└──────┬──────────────────┘     └──────────────────────────┘
+│                      CLI  (main.py)                       │  Entry point
+│  Parses flags, builds dependency graph, runs pipeline     │
+└──────────────┬───────────────────────────────────────────┘
+               │
+       ┌───────▼──────────────────┐
+       │   AccommodationService   │  Business logic
+       │  audit_term / audit_user │  Evaluates accommodations,
+       │  audit_course / quiz     │  builds AuditRow objects
+       └───────┬──────────────────┘
+               │ reads via
+┌──────────────▼──────────────────────────────────────────┐
+│            AccommodationRepo  (Protocol)                  │  Data access
+│  Abstract interface — callers never see the data source  │
+├──────────────┬──────────────────────────────────────────┤
+│  CanvasRepo  │              JsonRepo                      │  Implementations
+│  (live API)  │         (local JSON, dev/test)             │
+└──────┬───────┴──────────────────────────────────────────┘
        │
-┌──────▼──────────────────┐
-│    NewQuizClient        │
-│  LTI participants API   │
-└─────────────────────────┘
+┌──────▼───────────────────────────────────────────────────┐
+│  CanvasClient  ·  NewQuizClient  ·  PersistentCache       │  Transport + caching
+│  Auth, pagination, retries, TTL cache (terms/courses/     │
+│  quizzes/users), LTI session management via Playwright    │
+└──────────────────────────────────────────────────────────┘
+               │
+┌──────────────▼──────────────────────────────────────────┐
+│               Enricher  →  Reporter  →  Metrics           │  Output pipeline
+│  Human-readable fields (term/user names), Excel report,   │
+│  per-run summary (API calls, cache hit rates, timings)    │
+└──────────────────────────────────────────────────────────┘
 ```
 
-**Why two repository implementations?** `JsonRepo` loads data from local JSON files and was essential for development and testing without hitting the Canvas API. `CanvasRepo` is the production implementation that calls the live API. Both conform to the same `AccommodationRepo` protocol, so the business logic layer is completely unaware of the data source.
+**Why two repository implementations?** `JsonRepo` loads data from local JSON files and is essential for development and testing without hitting the Canvas API. `CanvasRepo` is the production implementation. Both conform to the same `AccommodationRepo` protocol, so the business logic layer is completely unaware of the data source.
 
-**Why a separate `CanvasClient`?** The Canvas API has its own pagination scheme (RFC 5988 `Link` headers) and response wrapping conventions (e.g., `{"quiz_submissions": [...]}` vs. bare arrays). `CanvasClient` owns those concerns so that `CanvasRepo` can focus on mapping API responses to domain models. `NewQuizClient` handles the LTI participants endpoint, which uses a different base URL and authentication token.
+**Why a separate `CanvasClient`?** The Canvas API has its own pagination scheme (RFC 5988 `Link` headers) and response wrapping conventions. `CanvasClient` owns those concerns — auth, pagination, retries, caching — so that `CanvasRepo` can focus purely on mapping API responses to domain models.
 
-**Why a planner and runner?** As the audit scope grew from a single quiz to entire terms, orchestration became its own concern. The planner determines what work needs to be done (which courses, quizzes, and accommodation types); the runner executes that plan, coordinating the service layer across entities.
+**Why an `Enricher`?** The audit phase answers one question: does this student have this accommodation? Display concerns (what is this user's name, what term is this?) are a separate responsibility. The `Enricher` runs after the audit, resolves human-readable fields from cached API data, and never touches audit evaluation logic.
+
+---
 
 ## Accommodation Data Sources
 
-Different accommodation types pull data from different API surfaces. The service layer routes automatically based on engine and type:
+Different accommodation types pull from different API surfaces. The service layer routes automatically:
 
-| Accommodation Type | Engine  | Data Source                          | API Required       |
-|--------------------|---------|--------------------------------------|--------------------|
-| `EXTRA_TIME`       | new     | Participant enrollment fields        | LTI API (Playwright session) |
-| `EXTRA_TIME`       | classic | Submission `extra_time` field        | Canvas API         |
-| `EXTRA_ATTEMPT`    | new     | Submission `extra_attempts` field    | Canvas API         |
-| `EXTRA_ATTEMPT`    | classic | Submission `extra_attempts` field    | Canvas API         |
-| `SPELL_CHECK`      | new     | Quiz item `interaction_data`         | Canvas API         |
-| `SPELL_CHECK`      | classic | N/A (not supported)                  | —                  |
+| Type            | Engine  | Source                             | API Required              |
+|-----------------|---------|------------------------------------|---------------------------|
+| `EXTRA_TIME`    | new     | Participant enrollment fields      | LTI API (Playwright)      |
+| `EXTRA_TIME`    | classic | Submission `extra_time` field      | Canvas REST API           |
+| `EXTRA_ATTEMPT` | new     | Submission `extra_attempts` field  | Canvas REST API           |
+| `EXTRA_ATTEMPT` | classic | Submission `extra_attempts` field  | Canvas REST API           |
+| `SPELL_CHECK`   | new     | Quiz item `interaction_data`       | Canvas REST API           |
+| `SPELL_CHECK`   | classic | N/A — not supported in classic     | —                         |
 
-**Key implication:** `EXTRA_ATTEMPT` and `SPELL_CHECK` audits for new quizzes work with the standard Canvas API alone — no LTI session is needed. Only `EXTRA_TIME` on new quizzes requires the LTI client, since that accommodation is set at the enrollment level in the New Quizzes service and is not exposed via the Canvas REST API.
+Only `EXTRA_TIME` on new quizzes requires the LTI session. All other types use the standard Canvas REST API.
 
-This means a full audit without the LTI client will produce complete `EXTRA_ATTEMPT` and `SPELL_CHECK` results, and simply produce zero rows for `EXTRA_TIME` on new quizzes until the LTI session is available.
+---
 
 ## LTI Session Management
 
-The New Quizzes service (`franciscan.quiz-lti-pdx-prod.instructure.com`) uses a Bearer token issued during the LTI launch handshake. This token cannot be obtained via the Canvas API — it must be extracted from the browser session.
+The New Quizzes service uses a Bearer token issued during the LTI launch handshake that cannot be obtained via the Canvas REST API. The system acquires it automatically using Playwright:
 
-The system automates this using Playwright:
-
-1. A browser window opens and the user logs into Canvas (once per session).
+1. A headless browser logs into Canvas via the admin backdoor.
 2. Playwright navigates to each New Quiz assignment page to trigger the LTI launch.
 3. The Bearer token and LTI assignment ID are extracted from the launch response.
-4. The token is held in memory for the audit run; LTI assignment ID mappings are persisted to `.lti_id_cache.json` to avoid re-running Playwright for known quizzes on subsequent runs.
+4. The token is held in memory for the run; LTI ID mappings are persisted to `.lti_id_cache.json` so Playwright only runs for new (unseen) quizzes on subsequent runs.
 
-Since the token is account-scoped, one login session serves all quizzes across the entire institution.
+The token is account-scoped — one login session serves all quizzes across the institution. If the token expires mid-audit (HTTP 401), the client re-acquires it and retries once automatically.
 
-## Key Features
+---
 
-- **Multi-engine support.** Canvas has two quiz engines ("classic" and "new") with different API shapes, different submission models, and different accommodation semantics. The system normalizes both into a unified model.
-- **Hierarchical auditing.** Audit a single quiz, all quizzes in a course, or all courses in a term — each level composes the one below it.
-- **Smart data source routing.** The service layer automatically selects the right data source for each accommodation type, minimizing API calls and avoiding unnecessary LTI sessions.
-- **Accommodation types.** Evaluates extra time (new and classic), extra attempts (new and classic), and spell-check per question (new quizzes only).
-- **Session-aware matching.** For new quizzes, participants and submissions are linked via session IDs extracted from `external_tool_url` query parameters, with a user-ID fallback.
-- **LTI ID caching.** Canvas assignment IDs and LTI service IDs differ. The mapping is discovered once via Playwright and persisted — subsequent runs skip the browser entirely for known quizzes.
-- **Defensive parsing.** Canvas API responses are inconsistent — IDs appear as strings or ints, `course_id` is sometimes absent and must be extracted from embedded URLs. The parsing layer handles all of this gracefully.
+## Caching
+
+Two cache layers minimize Canvas API calls:
+
+**Runtime cache** (`RequestCache`) — in-memory, per-run. Identical HTTP requests within a single audit run are served from memory. Automatically deduplicates calls when the same course or quiz data is needed for multiple accommodation types.
+
+**Persistent cache** (`PersistentCache`) — file-backed JSON under `.cache/`, survives across runs:
+
+| Entity   | TTL     | Rationale                                   |
+|----------|---------|---------------------------------------------|
+| Terms    | 1 year  | Essentially immutable in Canvas             |
+| Courses  | 30 days | Stable within a term                        |
+| Quizzes  | 1 day   | Instructors may edit quizzes during a term  |
+| Users    | 1 year  | Name/SIS ID changes are rare                |
+
+Submissions, participants, and quiz items are intentionally not cached — they must always reflect the current state of Canvas.
+
+On a warm cache, a full term audit (1,142 courses) that takes ~7 minutes on first run completes in ~2 minutes on subsequent runs, with the remaining time spent on submission fetches that cannot be cached.
+
+---
+
+## Installation
+
+```bash
+git clone https://github.com/your-username/accommodation-audit.git
+cd accommodation-audit
+
+python -m venv .venv
+source .venv/bin/activate   # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+
+# Required for new quiz extra-time audits only
+playwright install chromium
+
+cp .example.env .env
+# Edit .env with your Canvas credentials
+```
+
+### Required Environment Variables
+
+| Variable                | Description                                                              |
+|-------------------------|--------------------------------------------------------------------------|
+| `CANVAS_BASE_URL`       | Canvas instance URL (e.g. `https://canvas.university.edu`)               |
+| `CANVAS_TOKEN`          | Canvas API access token with read permissions                            |
+| `CANVAS_ACCOUNT_ID`     | Root or sub-account ID for course listing                                |
+| `CANVAS_BACKDOOR_URL`   | Canvas direct login URL (e.g. `https://canvas.university.edu/login/canvas`) |
+| `CANVAS_ADMIN_USERNAME` | Admin username for backdoor login                                        |
+| `CANVAS_ADMIN_PASSWORD` | Admin password for backdoor login                                        |
+
+---
+
+## Usage
+
+```bash
+# Audit an entire term (both engines, all accommodation types)
+python main.py audit --term 117
+
+# Audit a single course, classic engine only
+python main.py audit --course 12977 --engine classic
+
+# Audit a specific quiz, extra time only
+python main.py audit --quiz 48379 --engine new --types extra_time
+
+# Audit a specific student across all their active enrollments
+python main.py audit --user 99118
+
+# Audit a specific student in a specific term
+python main.py audit --user 99118 --term 117
+
+# Audit a specific student in a specific course
+python main.py audit --user 99118 --course 12977
+
+# Force re-fetch of quiz data before auditing
+python main.py audit --term 117 --refresh-entity quizzes
+
+# Save to a specific path, disable progress bars (e.g. for cron)
+python main.py audit --term 117 --output /reports/sp26.xlsx --no-progress
+
+# View persistent cache statistics
+python main.py cache-stats
+```
+
+### Scope Rules
+
+Without `--user`: supply exactly one of `--term`, `--course`, or `--quiz`.
+
+With `--user`: `--user` alone is valid (audits all active enrollments), or combine with one optional scope flag:
+
+| Combination              | Behaviour                                                   |
+|--------------------------|-------------------------------------------------------------|
+| `--user`                 | All quizzes across all active enrollments                   |
+| `--user --term`          | All quizzes in that term for that student                   |
+| `--user --course`        | All quizzes in that course for that student                 |
+| `--user --course --quiz` | One quiz for that student                                   |
+
+User-scoped audits use the Canvas enrollments endpoint to discover only the courses the student is actually enrolled in — avoiding a full-term scan.
+
+---
+
+## Output
+
+Results are written to an Excel workbook (`.xlsx`) with one row per user-accommodation-quiz combination. Rows where `has_accommodation=True` are highlighted green; `False` rows are highlighted yellow.
+
+| Column group | Columns |
+|---|---|
+| Term    | `enrollment_term_id`, `term_name` |
+| Course  | `course_id`, `course_name`, `course_code`, `sis_course_id` |
+| Quiz    | `quiz_id`, `quiz_title`, `quiz_due_at`, `quiz_lock_at` |
+| Identity | `engine`, `accommodation_type`, `user_id`, `user_name`, `sis_user_id`, `item_id` |
+| Result  | `has_accommodation`, `completed`, `attempts_left` |
+| Details | `extra_time`, `extra_time_in_seconds`, `timer_multiplier_value`, `extra_attempts`, `spell_check`, `position` |
+
+Every run also prints a summary to the terminal and log file:
+
+```
+────────────────────────────────────────────────
+Run summary
+  Rows:      54,844
+
+  Audit:     2m 6s
+  Enrich:    12s
+  Write:     7s
+  Total:     2m 25s
+
+  API calls: 1,142
+  RT cache:  847 hits / 1,989 misses (30%)
+  Users:     487 fetched, 0 from cache
+  Terms:     served from cache
+────────────────────────────────────────────────
+```
+
+---
 
 ## Project Structure
 
 ```
 accommodation-audit/
-├── audit/                          # Main application package
-│   ├── cache/                      # Caching layer
-│   │   ├── cache.py                #   Cache implementation
-│   │   ├── lti_id_cache.py         #   Persistent Canvas→LTI ID mapping cache
-│   │   ├── runtime.py              #   In-memory runtime cache
-│   │   └── ttl.py                  #   TTL-based persistent cache
-│   ├── clients/                    # HTTP layer
-│   │   ├── canvas_client.py        #   Core Canvas REST API client (auth, pagination)
-│   │   ├── new_quiz_client.py      #   LTI service client (participants endpoint)
-│   │   └── session.py              #   Playwright-based LTI session acquisition
-│   ├── models/                     # Domain models
-│   │   ├── audit.py                #   AuditRow and AuditRequest dataclasses
-│   │   ├── canvas.py               #   Canvas entities (Course, Quiz, Submission, etc.)
-│   │   └── parsing.py              #   Safe type coercion and validation helpers
-│   ├── planner/                    # Audit planning
-│   │   └── planner.py              #   Determines work scope and execution plan
-│   ├── repos/                      # Data access layer
-│   │   ├── base.py                 #   AccommodationRepo protocol definition
-│   │   ├── canvas_repo.py          #   Live Canvas API implementation
-│   │   └── json_repo.py            #   Local JSON file implementation (dev/test)
-│   ├── runner/                     # Execution orchestration
-│   │   └── runner.py               #   Coordinates audit execution across entities
-│   ├── services/                   # Business logic
-│   │   ├── accommodations.py       #   Core evaluation and audit composition
-│   │   └── tasks.py                #   Task definitions for audit operations
-│   ├── config.py                   # Environment-based settings
-│   ├── .env                        # Local environment config (not committed)
-│   └── .example.env                # Example file to set environment variables
-├── dumps/                          # Sample Canvas API response data
-│   ├── classic_quizzes.json
-│   ├── classic_submissions.json
-│   ├── courses.json
-│   ├── new_items.json
-│   ├── new_quizzes.json
-│   ├── new_submissions.json
-│   └── participant.json
+├── .cache/                         ← gitignored; persistent cache files
+├── audit/
+│   ├── cache/
+│   │   ├── lti_id_cache.py         Persistent Canvas → LTI assignment ID mapping
+│   │   ├── persistent.py           TTL-based file cache (terms, courses, quizzes, users)
+│   │   └── runtime.py              In-memory per-run request cache
+│   ├── clients/
+│   │   ├── canvas_client.py        Canvas REST client (auth, pagination, retries, metrics)
+│   │   ├── new_quiz_client.py      LTI service client with automatic token refresh
+│   │   ├── retry.py                @retryable decorator (exponential backoff + full jitter)
+│   │   └── session.py              Playwright-based LTI session acquisition
+│   ├── models/
+│   │   ├── audit.py                AuditRow and AuditRequest dataclasses
+│   │   ├── canvas.py               Canvas domain models (Course, Quiz, Submission, …)
+│   │   └── parsing.py              Safe type coercion for inconsistent API payloads
+│   ├── repos/
+│   │   ├── base.py                 AccommodationRepo protocol + AccommodationType enum
+│   │   ├── canvas_repo.py          Live Canvas API implementation (with persistent cache)
+│   │   └── json_repo.py            Local JSON implementation (development + testing)
+│   ├── services/
+│   │   └── accommodations.py       Evaluation logic + audit_term/course/quiz/user
+│   ├── config.py                   Environment-based settings (python-dotenv)
+│   ├── enrichment.py               Post-audit: term names, user display data
+│   ├── exceptions.py               Domain exception hierarchy (AuditError tree)
+│   ├── logging_setup.py            Rotating file log configuration
+│   ├── metrics.py                  RunMetrics collection and formatted summary
+│   └── reporting.py                Excel report writer (pandas + xlsxwriter)
+├── dumps/                          Sample Canvas API response fixtures (for testing)
+├── logs/                           ← gitignored; rotating audit log files
 ├── scripts/
-│   └── test_lti_session.py         # Manual verification script for LTI session flow
-├── tests/                          # Test suite
-│   ├── integration/                #   Integration tests (live Canvas API)
+│   └── test_lti_session.py         Manual LTI session verification script
+├── tests/
+│   ├── integration/                Live Canvas API tests (require .env credentials)
 │   │   ├── conftest.py
 │   │   └── test_canvas_repo.py
-│   └── unit/                       #   Unit tests (business logic, JSON fixtures)
+│   └── unit/                       Business logic tests (no network required)
 │       ├── conftest.py
 │       ├── test_audit_classic.py
 │       ├── test_audit_new.py
-│       └── test_repo_catalog.py
-├── main.py                         # CLI entry point
-├── .gitignore
-├── LICENSE
+│       ├── test_audit_user.py
+│       ├── test_cache.py
+│       ├── test_concurrency.py
+│       ├── test_enrichment.py
+│       ├── test_persistent_cache.py
+│       ├── test_repo_catalog.py
+│       └── test_retry.py
+├── main.py                         CLI entry point (click)
 ├── pyproject.toml
-├── README.md
 ├── requirements.txt
+├── README.md
 └── TODO.md
 ```
 
-## Example Usage
-
-```python
-import asyncio
-import httpx
-from audit.config import settings
-from audit.clients.canvas_client import CanvasClient
-from audit.repos.canvas_repo import CanvasRepo
-from audit.services.accommodations import AccommodationService
-from audit.repos.base import AccommodationType
-
-async def main():
-    async with httpx.AsyncClient() as http:
-        client = CanvasClient(
-            base_url=settings.canvas_base_url,
-            token=settings.canvas_token,
-            http=http,
-        )
-        repo = CanvasRepo(client, account_id=settings.canvas_account_id)
-        service = AccommodationService(repo)
-
-        # Audit extra attempts and spell-check for a new quiz
-        # (no LTI session required for these types)
-        rows = await service.audit_quiz(
-            course_id=12345,
-            quiz_id=189437,
-            engine="new",
-            accommodation_types=[
-                AccommodationType.EXTRA_ATTEMPT,
-                AccommodationType.SPELL_CHECK,
-            ],
-        )
-
-        for row in rows:
-            if row.has_accommodation:
-                print(f"User {row.user_id} — {row.accommodation_type.value}: {row.details}")
-
-asyncio.run(main())
-```
-
-## Installation
-
-```bash
-# Clone the repository
-git clone https://github.com/your-username/accommodation-audit.git
-cd accommodation-audit
-
-# Create a virtual environment and install dependencies
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-
-# Install Playwright browser (required for LTI session acquisition)
-playwright install chromium
-
-# Configure environment variables
-cp .env.example .env
-# Edit .env with your Canvas instance URL, API token, and account ID
-```
-
-### Required Environment Variables
-
-| Variable                | Description                                                                  |
-| `CANVAS_BASE_URL`       | Your Canvas instance URL (e.g., `https://canvas.university.edu`)             |
-| `CANVAS_TOKEN`          | Canvas API access token with appropriate read permissions                    |
-| `CANVAS_ACCOUNT_ID`     | Root or sub-account ID for course listing                                    |
-| `CANVAS_BACKDOOR_URL`   | Canvas direct login URL (e.g., `https://canvas.university.edu/login/canvas`) |
-| `CANVAS_ADMIN_USERNAME` | Canvas admin username for backdoor login                                     |
-| `CANVAS_ADMIN_PASSWORD` | Canvas admin password for backdoor login                                     |
-
-## Development Process
-
-This project was built iteratively, starting from the narrowest possible scope and broadening only after each layer was solid.
-
-**Phase 1 — Proof of concept with local JSON.** The first working version handled one course, one user, one quiz, and one accommodation type (extra time on a new quiz). Data came from JSON files saved from Canvas API responses. This let me focus on getting the domain model right without dealing with network concerns.
-
-**Phase 2 — Broadening scope.** With the foundation in place, I expanded along multiple axes: all users in a course, then additional accommodation types (extra attempts, classic quiz support, spell-check), then all quizzes in a course, then all courses in a term. Each expansion tested the architecture's flexibility — when adding a new accommodation type required changing only the evaluator map and the data-loading logic, I knew the layered design was working.
-
-**Phase 3 — Live API integration.** The `CanvasClient` and `CanvasRepo` provide the production data layer. A separate `NewQuizClient` handles the LTI participants endpoint, which requires a session token extracted via Playwright. The same business logic that passed tests against local JSON works against the live Canvas API with no changes.
-
-**Phase 4 — Orchestration and caching.** As the audit scope grew to full terms (hundreds of courses, thousands of quizzes), two new concerns emerged: planning what work to do and caching API responses. The planner/runner layer coordinates execution, while the cache layer (runtime + TTL-based persistence) keeps API calls within rate limits.
-
-## Tradeoffs and Design Decisions
-
-**Accommodation data source routing.** Different accommodation types pull from different APIs. `EXTRA_TIME` for new quizzes requires the LTI participants endpoint (and therefore a Playwright session); `EXTRA_ATTEMPT` for new quizzes reads from submissions via the standard Canvas API. This distinction is handled transparently by the service layer — callers request an accommodation type and the service determines where to get the data. The practical benefit: most audits don't require the LTI session at all.
-
-**`AuditRow` carries two shapes.** A row can represent a per-user result (extra time, extra attempts) or a per-item result (spell-check on a specific quiz question). I chose to keep a single row type rather than splitting into two for simplicity during early development and testing. This is a candidate for refactoring as the system matures.
-
-**First-submission-only.** Students may have multiple submissions for a given quiz. The system currently keeps only the first submission per user. This simplifies the data model and avoids ambiguity in the audit output, but a future version could surface per-attempt detail.
-
-**Eager loading of quiz context.** When auditing a quiz, all participants, submissions, and items are loaded upfront into a `QuizAuditContext` rather than fetched per-user. This trades memory for fewer API calls — the right tradeoff when auditing hundreds of students per quiz. The context loader also skips the LTI participants call entirely when `EXTRA_TIME` is not in the requested accommodation types.
-
-**Async from the start.** The `JsonRepo` methods are `async` even though they perform synchronous file reads. This was deliberate: it meant the business logic layer was always written with `await`, so switching to the truly async `CanvasRepo` required zero changes upstream.
-
-## Lessons Learned
-
-**Layered architecture pays for itself early.** Defining the `AccommodationRepo` protocol before writing any implementation meant I could build and test all business logic against `JsonRepo` without ever touching the network. When it came time to add `CanvasRepo`, the integration was straightforward — I just had to map API responses to the same models.
-
-**Start narrow, then generalize.** The temptation was to build a system that handled all accommodation types, both quiz engines, and full term-level auditing from day one. Instead, I started with a single accommodation type for a single user on a single quiz. Each expansion was a small, testable step that either validated the architecture or revealed where it needed to flex.
-
-**Async from the start, even when it doesn't matter yet.** Making `JsonRepo` async from day one meant the entire service layer was written with `await` from the beginning. When I introduced the truly async `CanvasRepo`, the transition was seamless — zero changes to business logic. The upfront cost was minimal (a few extra `async def` signatures); the payoff was a clean integration path.
-
-**Canvas's API inconsistencies are the real complexity.** The business logic for evaluating accommodations is straightforward. The hard part was normalizing Canvas's API responses: IDs that are sometimes strings and sometimes ints, `course_id` fields that are absent from some endpoints and must be reverse-parsed from embedded URLs, two completely different API surfaces for "classic" vs. "new" quizzes, and pagination via `Link` headers with wrapped vs. unwrapped response bodies. The parsing and client layers exist almost entirely to absorb this inconsistency so the rest of the system doesn't have to care.
-
-**Different accommodation types have different data residency.** It was tempting to treat all new quiz accommodation data as living in the LTI API. In practice, `extra_attempts` is on the Canvas submission, `extra_time` is on the LTI participant, and `spell_check` is on the quiz item. Each accommodation type required understanding exactly where its data lives before writing the evaluator.
-
-**Orchestration becomes its own layer.** Early on, "audit a term" was just a loop in the service layer. As caching, planning, and error recovery entered the picture, that loop accumulated too many responsibilities. Extracting the planner and runner into their own modules kept the service layer focused on evaluation logic and made the orchestration independently testable.
+---
 
 ## Testing
 
-The test suite is organized into unit and integration tests. Unit tests cover the business logic layer using `JsonRepo` as the data source, verifying correct evaluation of each accommodation type across both quiz engines. Integration tests verify the full stack against the live Canvas API.
-
 ```bash
-# Run unit tests only (no credentials required)
-pytest -m "not integration"
+# Unit tests — no credentials required
+python -m pytest -m "not integration" -v
 
-# Run integration tests (requires .env with Canvas credentials)
-pytest -m integration -v
+# Integration tests — requires .env with Canvas credentials
+python -m pytest -m integration -v
 
-# Run all tests
-pytest
+# All tests
+python -m pytest
 ```
+
+The unit test suite covers:
+
+- Accommodation evaluation for both quiz engines and all types
+- Hierarchical auditing (quiz → course → term → user-scoped)
+- Bounded concurrency (semaphore limits, correct results under parallelism)
+- Runtime cache (hit/miss counting, key isolation, stats)
+- Persistent cache (TTL expiry, invalidation, corrupt file recovery, version mismatch)
+- Enricher (term/user lookup, batching, graceful failure, immutability of rows)
+- Retry decorator (retryable status codes, full jitter backoff, transport errors)
+- Repository catalog (quiz and submission indexing in JsonRepo)
+
+---
+
+## Development History
+
+The project was built iteratively, starting from the narrowest possible scope and broadening only after each layer was solid.
+
+**Phase 1 — Local JSON proof of concept.** One course, one user, one quiz, one accommodation type (extra time on a new quiz). Data from JSON files saved from Canvas API responses. This let the domain model take shape without network concerns.
+
+**Phase 2 — Broadening scope.** All users in a course, then additional accommodation types (extra attempts, classic quiz support, spell-check), then all quizzes in a course, then all courses in a term.
+
+**Phase 3 — Live Canvas API.** `CanvasClient` and `CanvasRepo` provide the production data layer. `NewQuizClient` handles the LTI participants endpoint via Playwright. The same business logic that passed tests against `JsonRepo` worked against the live API with zero changes.
+
+**Phase 4 — Stability.** Exception hierarchy, structured logging, retry decorator with exponential backoff and full jitter, integration test suite.
+
+**Phase 5 — Performance.** Runtime cache eliminates duplicate API calls within a run. Bounded concurrency via semaphores (10 courses in parallel) keeps Canvas rate limits from being exhausted. A term audit of 1,142 courses runs in ~2 minutes.
+
+**Phase 6 — CLI and reporting.** `click`-based CLI with `--term`, `--course`, `--quiz`, `--user`, `--engine`, `--types`, `--refresh-entity` flags. Excel report via `pandas` + `xlsxwriter`. `tqdm` progress bars for course auditing, enrichment, and file writing.
+
+**Phase 7 — Persistent cache.** TTL-based file cache for terms, courses, quizzes, and users. Warm cache cuts repeated term audits from 7 minutes to ~2 minutes.
+
+**Phase 8 — Fuller reporting.** `AuditRow` enriched with course name, quiz title, due/lock dates, attempts left (Bucket 1 — free from already-loaded objects). Term name and user display data added via the `Enricher` post-processing layer with batched parallel API calls and 1-year persistent caching (Bucket 2).
+
+**Phase 9 — User-scoped auditing.** `--user` CLI flag. Uses the Canvas enrollments endpoint to discover only the courses a student is enrolled in, avoiding full-term scans. Supports `user`, `user+term`, `user+course`, and `user+course+quiz` scope combinations.
+
+**Phase 10 — Metrics.** Per-run summary showing API calls made, runtime cache hit rate, retry count, enrichment stats, and phase-by-phase timing. Collected at run end by querying existing objects — no shared mutable state threaded through the call stack.
+
+---
+
+## Key Design Decisions
+
+**Accommodation data source routing.** Different accommodation types pull from different APIs. `EXTRA_TIME` for new quizzes requires the LTI participants endpoint; `EXTRA_ATTEMPT` reads from Canvas submissions. This distinction is handled transparently by the service layer.
+
+**`AuditRow` carries two shapes.** A row can represent a per-user result (extra time, extra attempts) or a per-item result (spell-check on a specific question). A single row type was kept rather than splitting into two for simplicity; this is a candidate for future refactoring.
+
+**Enricher as a separate post-processing layer.** Audit logic and display logic are different concerns. Keeping them separate makes the service layer independently testable and means the enrichment step can be skipped entirely in programmatic contexts where human-readable names aren't needed.
+
+**Semaphore at the course level, not the quiz level.** Early versions gated concurrency per quiz, which flooded Canvas with simultaneous requests across hundreds of courses. Moving the semaphore to gate entire course audits (10 at a time) keeps API request volume predictable.
+
+**Async from the start, even for synchronous repos.** `JsonRepo` methods are `async` even though they do synchronous file reads. This meant the entire service layer was written with `await` from the beginning — when `CanvasRepo` arrived, zero changes were needed upstream.
+
+**Canvas's API inconsistencies are the real complexity.** The business logic for evaluating accommodations is straightforward. The hard part is normalizing API responses: IDs that are sometimes strings and sometimes ints, `course_id` fields absent from some endpoints and parsed from embedded URLs, two completely different API surfaces for classic vs. new quizzes.
+
+---
 
 ## Roadmap
 
-See [TODO.md](TODO.md) for the full phased roadmap. Key upcoming work includes retry logic with backoff, bounded concurrency via semaphores, and structured reporting with progress indicators.
+See [TODO.md](TODO.md) for the full phased roadmap. Upcoming work includes a DAG-based planner for smarter traversal, SIS name search (fuzzy matching for user lookup), and broader integration test coverage.
+
+---
 
 ## License
 

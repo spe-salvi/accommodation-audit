@@ -8,9 +8,10 @@ audit/cache/__pycache__/
 audit/tests/__pycache__/
 audit/tests/integration/__pycache__/
 audit/tests/unit/__pycache__/
-audit/.env
+.env
 __pycache__
 .pytest_cache
 logs/*.log 
 *.xlsx
 .lti_id_cache_test.json
+.cache
