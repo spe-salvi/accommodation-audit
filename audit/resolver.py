@@ -105,11 +105,21 @@ class Resolver:
         Raises
         ------
         ResolveError
-            If no term names contain the query string.
+            If no term names contain all query tokens.
         """
         terms = await self._repo.list_terms()
-        q = query.lower()
-        matches = [t for t in terms if t.name and q in t.name.lower()]
+
+        # Split query into tokens and require all to appear in the term
+        # name (in any order, case-insensitive). This means:
+        #   "Spring 2026"    matches "2025-2026 - Spring"
+        #   "2026 Spring"    matches "2025-2026 - Spring"
+        #   "Spring"         matches "2025-2026 - Spring"
+        #   "Fall 25"        matches "2025-2026 - Fall"
+        tokens = query.lower().split()
+        matches = [
+            t for t in terms
+            if t.name and all(tok in t.name.lower() for tok in tokens)
+        ]
 
         if not matches:
             available = ", ".join(
@@ -203,10 +213,10 @@ class Resolver:
         quizzes = await self._repo.list_quizzes(
             course_id=course_id, engine=engine,
         )
-        q = query.lower()
+        tokens = query.lower().split()
         matches = [
             quiz for quiz in quizzes
-            if quiz.title and q in quiz.title.lower()
+            if quiz.title and all(tok in quiz.title.lower() for tok in tokens)
         ]
 
         if not matches:

@@ -80,7 +80,7 @@
 /* ─── Audit layout ───────────────────────────────────────────────────── */
 .auditLayout {
   display: grid;
-  grid-template-columns: 340px 1fr;
+  grid-template-columns: 300px 1fr;
   gap: 1.25rem;
   align-items: start;
 }

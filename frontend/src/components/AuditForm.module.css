@@ -1,0 +1,125 @@
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.875rem;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.label {
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.input {
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  padding: 0.625rem 0.75rem;
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  transition: border-color 0.15s, box-shadow 0.15s;
+  outline: none;
+}
+
+.input:focus {
+  border-color: var(--navy);
+  box-shadow: 0 0 0 3px rgba(15,31,56,0.08);
+}
+
+.input::placeholder { color: var(--border); }
+
+.input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: var(--cream-dark);
+}
+
+.options {
+  display: flex;
+  gap: 2rem;
+  flex-wrap: wrap;
+}
+
+.fieldset {
+  border: none;
+  padding: 0;
+}
+
+.legend {
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+  display: block;
+}
+
+.radioGroup,
+.checkGroup {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.radio,
+.check {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.875rem;
+  cursor: pointer;
+  user-select: none;
+}
+
+.radio input,
+.check input {
+  accent-color: var(--navy);
+  cursor: pointer;
+}
+
+.error {
+  font-size: 0.8125rem;
+  color: var(--error-fg);
+  background: var(--error-bg);
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--radius);
+  border-left: 3px solid var(--error-fg);
+}
+
+.submit {
+  align-self: flex-start;
+  font-family: var(--font-body);
+  font-size: 0.875rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  padding: 0.625rem 1.5rem;
+  background: var(--navy);
+  color: var(--cream);
+  border: none;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
+}
+
+.submit:hover:not(:disabled) { background: var(--navy-light); }
+.submit:active:not(:disabled) { transform: translateY(1px); }
+.submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}

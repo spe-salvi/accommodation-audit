@@ -1,0 +1,131 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+}
+
+.phase {
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--amber);
+}
+
+.desc {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+.barTrack {
+  height: 6px;
+  background: var(--border-light);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.barFill {
+  height: 100%;
+  background: var(--navy);
+  border-radius: 3px;
+  transition: width 0.4s ease;
+}
+
+.barDone { background: var(--amber); }
+
+.barMeta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.mono { font-family: var(--font-mono); }
+
+.metrics {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--border-light);
+}
+
+.pill {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: var(--white);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius);
+  padding: 0.5rem 0.875rem;
+  min-width: 80px;
+}
+
+.pillValue {
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--navy);
+  line-height: 1.2;
+}
+
+.pillLabel {
+  font-size: 0.625rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+/* Error */
+.errorBox {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+  background: var(--error-bg);
+  border: 1px solid #f5c6cb;
+  border-left: 4px solid var(--error-fg);
+  border-radius: var(--radius);
+  padding: 1rem;
+}
+
+.errorIcon {
+  color: var(--error-fg);
+  font-size: 1rem;
+  font-weight: 700;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.errorTitle {
+  font-weight: 500;
+  color: var(--error-fg);
+  font-size: 0.875rem;
+  margin-bottom: 0.25rem;
+}
+
+.errorMsg {
+  font-size: 0.875rem;
+  color: #5a1a1a;
+  font-family: var(--font-mono);
+}
+
+.resetBtn {
+  align-self: flex-start;
+  font-family: var(--font-body);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  color: var(--text-muted);
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.resetBtn:hover {
+  border-color: var(--navy);
+  color: var(--navy);
+}

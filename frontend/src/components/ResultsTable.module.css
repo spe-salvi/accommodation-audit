@@ -1,0 +1,192 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-height: 0;
+  flex: 1;
+}
+
+/* Toolbar */
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.875rem 1rem;
+  background: var(--white);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  flex-wrap: wrap;
+}
+
+.toolbarLeft  { display: flex; gap: 0.625rem; flex-wrap: wrap; align-items: center; }
+.toolbarRight { display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; }
+
+.search {
+  font-family: var(--font-body);
+  font-size: 0.8125rem;
+  padding: 0.4375rem 0.625rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--cream);
+  color: var(--text);
+  width: 220px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.search:focus { border-color: var(--navy); }
+.search::placeholder { color: var(--border); }
+
+.select {
+  font-family: var(--font-body);
+  font-size: 0.8125rem;
+  padding: 0.4375rem 0.625rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--cream);
+  color: var(--text);
+  cursor: pointer;
+  outline: none;
+}
+.select:focus { border-color: var(--navy); }
+
+.count {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  white-space: nowrap;
+}
+
+.download {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--navy);
+  text-decoration: none;
+  border: 1px solid var(--navy);
+  border-radius: var(--radius);
+  padding: 0.375rem 0.875rem;
+  transition: background 0.15s, color 0.15s;
+}
+.download:hover {
+  background: var(--navy);
+  color: var(--cream);
+}
+
+.newAudit {
+  font-family: var(--font-body);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.375rem 0.875rem;
+  cursor: pointer;
+  color: var(--text-muted);
+  background: none;
+  transition: border-color 0.15s, color 0.15s;
+}
+.newAudit:hover { border-color: var(--navy); color: var(--navy); }
+
+/* Table */
+.tableWrap {
+  overflow-x: auto;
+  border: 1px solid var(--border-light);
+  border-top: none;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}
+
+.th {
+  padding: 0.625rem 0.875rem;
+  text-align: left;
+  font-size: 0.625rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  background: var(--cream-dark);
+  border-bottom: 1px solid var(--border-light);
+  white-space: nowrap;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.tr { transition: background 0.1s; }
+.tr:hover td { background: var(--cream-dark); }
+
+.trYes td:first-child { border-left: 3px solid #76c442; }
+.trNo  td:first-child { border-left: 3px solid #e0a020; }
+
+.td {
+  padding: 0.5rem 0.875rem;
+  border-bottom: 1px solid var(--border-light);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
+  vertical-align: middle;
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-size: 0.8em;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  padding: 0.2em 0.5em;
+  border-radius: 2px;
+}
+.yes { background: var(--success-bg); color: var(--success-fg); }
+.no  { background: var(--warning-bg); color: var(--warning-fg); }
+
+.dim   { color: var(--text-muted); font-size: 0.8125rem; }
+.dash  { color: var(--border); }
+
+.empty {
+  padding: 2rem;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
+
+/* Pagination */
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 0.75rem;
+  border: 1px solid var(--border-light);
+  border-top: none;
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+  background: var(--white);
+}
+
+.pageBtn {
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  padding: 0.375rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: none;
+  cursor: pointer;
+  color: var(--text);
+  transition: border-color 0.15s;
+}
+.pageBtn:hover:not(:disabled) { border-color: var(--navy); }
+.pageBtn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.pageInfo {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
