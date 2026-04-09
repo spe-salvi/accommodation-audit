@@ -84,7 +84,7 @@
   - [x] Term name (terms list, 1-year cache)
   - [x] User name + SIS user ID (batched parallel fetches, 1-year cache)
 - [x] Enricher progress bar (combined bar: terms + users, suppressed on warm cache)
-- [ ] Bucket 3 — New quiz item enrichment (position/question number per item)
+- [x] Bucket 3 — New quiz item position in spell-check rows (from already-loaded NewQuizItem, zero extra API calls)
 
 
 ## Phase 9 — User-Scoped Auditing
@@ -99,48 +99,54 @@
 ## Phase 10 — Metrics
 
 - [x] `requests_made` and `retries_fired` counters on `CanvasClient`
-- [x] `users_fetched`, `users_from_cache`, `terms_fetched`, `terms_from_cache` on `Enricher`
+- [x] `users_fetched`, `terms_fetched` counters on `Enricher`
+- [x] `hits` and `misses` counters on `PersistentCache` (accurate cross-run cache hit tracking)
 - [x] `RunMetrics` dataclass + `collect_metrics()` + `format_metrics()`
 - [x] Per-phase timing (audit, enrich, write) in run summary
-- [x] Runtime cache hit rate in summary
-- [ ] Unit tests for metrics layer
+- [x] Persistent and runtime cache hit rates in summary
+- [x] Unit tests for metrics layer
 
 
 ## Phase 11 — Planner and DAG Traversal
 
-- [ ] Design traversal DAG (input scope → optimal API path)
-  - [ ] `--user` alone: enrollments → courses → quizzes
-  - [ ] `--user --term`: enrollments filtered by term → courses → quizzes
-  - [ ] `--term`: account courses → quizzes (current behavior, already optimal)
-  - [ ] `--course` / `--quiz`: direct fetch (current behavior, already optimal)
-- [ ] Planner selects traversal strategy based on input scope
-- [ ] Avoid redundant course fetches when same course appears in multiple user enrollments
+- [x] `AuditScope` dataclass (engine, types, term/course/quiz/user IDs and query fields)
+- [x] `AuditStep` and `StepKind` (COURSE, USER, QUIZ)
+- [x] `AuditPlan.execute()` — concurrent step execution gated by semaphore
+- [x] `AuditPlanner.build()` — resolves scope into deduplicated step list
+  - [x] Term scope → list_courses → COURSE steps
+  - [x] Course scope → single COURSE or USER step
+  - [x] Quiz scope → single QUIZ step
+  - [x] User scope → list_enrollments → USER steps (deduplicated by course)
+  - [x] User + term scope → enrollment filtered by term
+- [x] Multi-user deduplication — shared courses audited once, `user_ids` set for filtering
+- [x] Semaphore gating moved from service to planner's `_execute_step`
+- [x] Unit tests — planner traversal, deduplication, error cases
 
 
 ## Phase 12 — Fuzzy Search
 
-- [ ] Search by any human-readable field without knowing the Canvas ID
-- [ ] Searchable fields:
-  - [ ] Term name
-  - [ ] Course name
-  - [ ] Course code
-  - [ ] SIS course ID
-  - [ ] Quiz title
-  - [ ] User name
-  - [ ] SIS user ID
-- [ ] Fuzzy matching strategy (exact → prefix → substring → threshold similarity)
-- [ ] CLI integration: `--term`, `--course`, `--quiz`, `--user` accept names as well as IDs
-- [ ] Disambiguation prompt when multiple matches found
-- [ ] Scope rules for name-based input (e.g. course name requires term context)
+- [x] `--term`, `--course`, `--quiz`, `--user` accept names as well as Canvas IDs
+- [x] `Resolver` class with four resolution methods:
+  - [x] `resolve_term` — token-based local filter against cached terms list
+  - [x] `resolve_course` — delegates to Canvas `search_term` API (requires term context)
+  - [x] `resolve_quiz` — token-based local filter against course quiz list (requires course context)
+  - [x] `resolve_user` — delegates to Canvas `search_term` API (handles name + SIS user ID)
+- [x] `ResolveError` raised with helpful message on no matches
+- [x] Multiple matches audited (fan-out, no disambiguation prompt)
+- [x] `canvas_repo.search_courses()` and `search_users()` methods
+- [x] `_parse_id_or_query()` helper in `main.py` routes int strings to IDs, names to queries
+- [x] Context rules enforced in CLI: course query requires term; quiz query requires course
+- [x] Unit tests — resolver methods, ResolveError, CLI helpers
 
 
 ## Phase 13 — Integration and Test Coverage
 
-- [ ] Unit tests — metrics layer
-- [ ] Unit tests — planner/DAG
+- [x] Unit tests — metrics layer (Phase 10)
+- [x] Unit tests — planner/DAG (Phase 11)
+- [x] Unit tests — resolver and CLI helpers (Phase 12)
 - [ ] Integration tests — enrichment (term names, user display data)
 - [ ] Integration tests — persistent cache (live Canvas data)
-- [ ] Integration tests — user-scoped auditing
+- [ ] Integration tests — user-scoped auditing with live enrollments
 
 
 ## Phase 14 — Dynamic Rate Adaptation
@@ -153,19 +159,26 @@
 
 ## Phase 15 — React Web Frontend
 
-- [ ] Design REST API layer (FastAPI or similar) wrapping the audit service
-- [ ] Authentication (admin-only, token-based)
-- [ ] React frontend
-  - [ ] Audit configuration form (scope, engine, types, user)
-  - [ ] Fuzzy search inputs for term/course/quiz/user
-  - [ ] Real-time progress display (WebSocket or SSE)
-  - [ ] Run history and report download
-  - [ ] Cache stats dashboard
-- [ ] Hosting on Render (free tier)
-- [ ] Background job queue for long-running term audits
+- [x] FastAPI backend wrapping the audit service
+  - [x] `POST /api/audit` — starts background job, returns job_id
+  - [x] `GET /api/audit/{id}/stream` — SSE progress stream
+  - [x] `GET /api/audit/{id}/rows` — completed rows as JSON
+  - [x] `GET /api/audit/{id}/download` — Excel file download
+  - [x] `GET /api/cache/stats` — persistent cache statistics
+  - [x] `DELETE /api/cache/{entity}` — cache invalidation
+- [x] React frontend (Vite)
+  - [x] Audit configuration form (scope inputs accept ID or name, engine, types)
+  - [x] Real-time SSE progress bar with phase labels
+  - [x] Run metrics summary on completion
+  - [x] Filterable/paginated results table
+  - [x] Excel report download
+  - [x] Cache stats dashboard with invalidation buttons
+- [x] Single-service deployment on Render (FastAPI serves built React static files)
+- [x] Persistent disk on Render for `.cache/` directory
+- [ ] Microsoft Entra ID (Azure AD) SSO authentication with MFA
 
 
 ## Ongoing
 
 - [ ] Keep README and TODO in sync with completed work
-- [ ] Add `.gitignore` entries for `.cache/`, `logs/`, `*.xlsx`, `.env`
+- [x] Add `.gitignore` entries for `.cache/`, `logs/`, `*.xlsx`, `.env`

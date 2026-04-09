@@ -13,7 +13,7 @@ const TYPES = [
   { value: 'spell_check',   label: 'Spell check' },
 ]
 
-export default function AuditForm({ onSubmit, disabled }) {
+export default function AuditForm({ onSubmit, onAbort, disabled, running }) {
   const [scope, setScope] = useState({
     term: '', course: '', quiz: '', user: '',
   })
@@ -28,17 +28,15 @@ export default function AuditForm({ onSubmit, disabled }) {
   }
 
   function validate() {
-    const filled = Object.entries(scope).filter(([, v]) => v.trim())
-    const scopeFields = filled.filter(([k]) => k !== 'user')
+    const hasTerm   = !!scope.term.trim()
+    const hasCourse = !!scope.course.trim()
+    const hasQuiz   = !!scope.quiz.trim()
+    const hasUser   = !!scope.user.trim()
 
-    if (!scope.user.trim() && scopeFields.length === 0)
-      return 'Enter at least one scope field (term, course, quiz, or user).'
-    if (!scope.user.trim() && scopeFields.length > 1)
-      return 'Use only one of term, course, or quiz at a time (without user).'
-    if (scope.user.trim() && scopeFields.length > 1)
-      return 'Combine user with at most one other field.'
-    if (scope.quiz.trim() && !scope.course.trim())
-      return 'Quiz search requires a course.'
+    if (!hasTerm && !hasCourse && !hasQuiz && !hasUser)
+      return 'Enter at least one scope field.'
+    if (hasQuiz && !hasCourse)
+      return 'Quiz requires a course.'
     if (types.length === 0)
       return 'Select at least one accommodation type.'
     return ''
@@ -56,7 +54,7 @@ export default function AuditForm({ onSubmit, disabled }) {
     if (scope.quiz.trim())   payload.quiz   = scope.quiz.trim()
     if (scope.user.trim())   payload.user   = scope.user.trim()
 
-    onSubmit(payload)
+    onSubmit(payload, setError)
   }
 
   return (
@@ -124,9 +122,20 @@ export default function AuditForm({ onSubmit, disabled }) {
 
       {error && <p className={styles.error}>{error}</p>}
 
-      <button className={styles.submit} type="submit" disabled={disabled}>
-        {disabled ? 'Running…' : 'Run audit'}
-      </button>
+      <div className={styles.actions}>
+        <button className={styles.submit} type="submit" disabled={disabled}>
+          {running ? 'Running…' : 'Run audit'}
+        </button>
+        {running && (
+          <button
+            className={styles.abort}
+            type="button"
+            onClick={onAbort}
+          >
+            Abort
+          </button>
+        )}
+      </div>
     </form>
   )
 }

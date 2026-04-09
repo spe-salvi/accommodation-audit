@@ -38,7 +38,7 @@ export function useAudit() {
     setPhase('')
   }, [])
 
-  const startAudit = useCallback(async (formData) => {
+  const startAudit = useCallback(async (formData, setFormError) => {
     reset()
     setState(JOB_STATE.RUNNING)
     setPhase('auditing')
@@ -52,7 +52,15 @@ export function useAudit() {
       })
       if (!res.ok) {
         const err = await res.json()
-        throw new Error(err.detail || 'Failed to start audit')
+        const msg = err.detail || 'Failed to start audit'
+        // 422 validation errors belong in the form, not the progress card
+        if (res.status === 422 && setFormError) {
+          setFormError(msg)
+          setState(JOB_STATE.IDLE)
+          setPhase('')
+          return
+        }
+        throw new Error(msg)
       }
       const { job_id } = await res.json()
       setJobId(job_id)
@@ -123,10 +131,19 @@ export function useAudit() {
     }
   }, [reset])
 
+  const abortAudit = useCallback(async () => {
+    if (!jobId) return
+    try {
+      await fetch(`/api/audit/${jobId}`, { method: 'DELETE' })
+    } catch (e) {
+      // ignore — SSE will surface the cancellation event
+    }
+  }, [jobId])
+
   const downloadUrl = jobId ? `/api/audit/${jobId}/download` : null
 
   return {
     state, jobId, progress, metrics, rows, error, phase,
-    startAudit, reset, downloadUrl,
+    startAudit, abortAudit, reset, downloadUrl,
   }
 }

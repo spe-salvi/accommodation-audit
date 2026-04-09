@@ -57,6 +57,7 @@ class Job:
     error: str | None = None
     started_at: float = field(default_factory=time.perf_counter)
     elapsed: float = 0.0
+    cancelled: bool = False
     # SSE event queue — SSE endpoint reads from this
     events: asyncio.Queue = field(default_factory=lambda: asyncio.Queue(maxsize=256))
     # Summary metrics written on completion
@@ -230,6 +231,8 @@ async def run_audit_job(job: Job, request_data: dict) -> None:
             completed = 0
             for plan, scope in zip(plans, scopes):
                 for step in plan.steps:
+                    if job.cancelled:
+                        raise asyncio.CancelledError()
                     from audit.planner import _execute_step
                     step_rows = await _execute_step(step, svc, semaphore=svc._semaphore)
                     all_rows.extend(step_rows)
@@ -253,6 +256,10 @@ async def run_audit_job(job: Job, request_data: dict) -> None:
             enrich_start = time.perf_counter()
             all_rows = await enricher.enrich(all_rows)
             enrich_elapsed = time.perf_counter() - enrich_start
+
+            # Remove test student rows (user_id set but no SIS ID —
+            # real students always have a SIS user ID at this institution)
+            all_rows = _filter_reportable_rows(all_rows)
 
         # Collect metrics
         metrics = collect_metrics(
@@ -292,11 +299,17 @@ async def run_audit_job(job: Job, request_data: dict) -> None:
             "metrics":   job.metrics,
         })
 
-    except ResolveError as exc:
+    except (ResolveError, ValueError) as exc:
         job.status = JobStatus.ERROR
         job.error  = str(exc)
         await job.events.put({"type": "error", "message": str(exc)})
-        logger.warning("Audit job %s failed (resolve): %s", job.job_id, exc)
+        logger.warning("Audit job %s failed (scope): %s", job.job_id, exc)
+
+    except asyncio.CancelledError:
+        job.status = JobStatus.ERROR
+        job.error  = "Audit cancelled."
+        await job.events.put({"type": "error", "message": "Audit cancelled."})
+        logger.info("Audit job %s was cancelled.", job.job_id)
 
     except Exception as exc:
         job.status = JobStatus.ERROR
@@ -329,3 +342,30 @@ def _serialise_row(row) -> dict:
         "user_name":           row.user_name,
         "sis_user_id":         row.sis_user_id,
     }
+
+
+def _filter_reportable_rows(rows: list) -> list:
+    """
+    Remove rows that should not appear in reports:
+
+    1. Test student rows — user_id is set but sis_user_id is null or the
+       string 'None'. Real students at this institution always have a SIS
+       user ID; the Canvas test student account does not.
+
+    2. Spell-check rows (user_id=None) are kept — they represent quiz item
+       configuration and are valid audit data.
+    """
+    def _keep(row) -> bool:
+        if row.user_id is None:
+            return True  # spell-check row — keep
+        sis = row.sis_user_id
+        if sis is None or str(sis) == 'None' or str(sis).strip() == '':
+            return False  # test student — drop
+        return True
+
+    before = len(rows)
+    filtered = [r for r in rows if _keep(r)]
+    dropped = before - len(filtered)
+    if dropped:
+        logger.debug("_filter_reportable_rows: dropped %d test-student row(s)", dropped)
+    return filtered

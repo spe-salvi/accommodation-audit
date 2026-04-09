@@ -31,32 +31,20 @@ async def start_audit(request: AuditRequest, background_tasks: BackgroundTasks):
     """
     Start a new audit job.
 
-    Validates the scope (at least one of term/course/quiz/user must be set),
-    creates a job record, kicks off the background task, and immediately
-    returns the job_id so the client can open the SSE stream.
+    Validates the scope using the same rules as the frontend form,
+    then creates a job and starts the background task.
     """
-    # Basic scope validation mirroring the CLI rules
-    scope_fields = {k: v for k, v in {
-        "term": request.term,
-        "course": request.course,
-        "quiz": request.quiz,
-    }.items() if v is not None}
+    has_term   = request.term   is not None
+    has_course = request.course is not None
+    has_quiz   = request.quiz   is not None
+    has_user   = request.user   is not None
 
-    if request.user is None and len(scope_fields) == 0:
-        raise HTTPException(
-            status_code=422,
-            detail="Supply at least one of: term, course, quiz, or user.",
-        )
-    if request.user is None and len(scope_fields) > 1:
-        raise HTTPException(
-            status_code=422,
-            detail=f"Supply exactly one scope field — got: {', '.join(scope_fields)}.",
-        )
-    if request.user is not None and len(scope_fields) > 1:
-        raise HTTPException(
-            status_code=422,
-            detail="user can be combined with at most one scope field.",
-        )
+    if not has_term and not has_course and not has_quiz and not has_user:
+        raise HTTPException(status_code=422,
+            detail="Enter at least one scope field.")
+    if has_quiz and not has_course:
+        raise HTTPException(status_code=422,
+            detail="Quiz requires a course.")
 
     job = job_store.create()
 
@@ -68,6 +56,29 @@ async def start_audit(request: AuditRequest, background_tasks: BackgroundTasks):
 
     logger.info("Audit job %s created: %s", job.job_id, request.model_dump())
     return JobCreated(job_id=job.job_id)
+
+
+@router.delete("/{job_id}", status_code=200)
+async def abort_audit(job_id: str):
+    """
+    Request cancellation of a running audit job.
+
+    Sets the job's cancelled flag. The background task checks this
+    flag between steps and terminates cleanly on the next check.
+    Returns immediately — the SSE stream will emit an error event
+    when the job actually stops.
+    """
+    job = job_store.get(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Job not found")
+    if job.status not in (JobStatus.PENDING, "running"):
+        raise HTTPException(
+            status_code=409,
+            detail=f"Job cannot be cancelled (status: {job.status})",
+        )
+    job.cancelled = True
+    logger.info("Audit job %s cancellation requested.", job_id)
+    return {"job_id": job_id, "message": "Cancellation requested."}
 
 
 @router.get("/{job_id}/stream")
@@ -84,6 +95,33 @@ async def stream_progress(job_id: str):
         raise HTTPException(status_code=404, detail="Job not found")
 
     async def event_generator():
+        # Wait briefly for the background task to start
+        for _ in range(20):
+            if job.status != JobStatus.PENDING:
+                break
+            await asyncio.sleep(0.1)
+
+        # If the job already reached a terminal state before the stream
+        # connected (e.g. immediate validation error in the background task),
+        # drain any queued events first then synthesize the terminal event.
+        if job.status in (JobStatus.COMPLETE, JobStatus.ERROR):
+            # Drain any events already in the queue
+            while not job.events.empty():
+                try:
+                    event = job.events.get_nowait()
+                    yield f"data: {json.dumps(event)}\n\n"
+                    if event.get("type") in ("complete", "error"):
+                        return
+                except Exception:
+                    break
+            # Queue was empty but job is terminal — synthesize the event
+            if job.status == JobStatus.ERROR:
+                msg = job.error or "An unexpected error occurred."
+                yield f"data: {json.dumps({'type': 'error', 'message': msg})}\n\n"
+            else:
+                yield f"data: {json.dumps({'type': 'complete', 'row_count': len(job.rows), 'elapsed': job.elapsed, 'metrics': job.metrics})}\n\n"
+            return
+
         while True:
             try:
                 event = await asyncio.wait_for(job.events.get(), timeout=30.0)
@@ -91,10 +129,14 @@ async def stream_progress(job_id: str):
                 if event.get("type") in ("complete", "error"):
                     break
             except asyncio.TimeoutError:
-                # Heartbeat to keep the connection alive
                 yield ": heartbeat\n\n"
-                # Check if job finished without sending a terminal event
                 if job.status in (JobStatus.COMPLETE, JobStatus.ERROR):
+                    # Synthesize terminal event if queue was drained without it
+                    if job.status == JobStatus.ERROR:
+                        msg = job.error or "An unexpected error occurred."
+                        yield f"data: {json.dumps({'type': 'error', 'message': msg})}\n\n"
+                    elif job.status == JobStatus.COMPLETE:
+                        yield f"data: {json.dumps({'type': 'complete', 'row_count': len(job.rows), 'elapsed': job.elapsed, 'metrics': job.metrics})}\n\n"
                     break
 
     return StreamingResponse(

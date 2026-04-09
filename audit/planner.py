@@ -322,11 +322,21 @@ class AuditPlanner:
                     "quiz_query requires a course_id or course_query to be set. "
                     "Add --course to scope the quiz search."
                 )
-            quizzes = await resolver.resolve_quiz(
-                scope.quiz_query,
-                course_id=scope.course_id,
-                engine=scope.engine,
-            )
+            from audit.resolver import ResolveError
+            try:
+                quizzes = await resolver.resolve_quiz(
+                    scope.quiz_query,
+                    course_id=scope.course_id,
+                    engine=scope.engine,
+                )
+            except ResolveError:
+                # No quiz by this name in this engine — not an error when
+                # auditing both engines (quiz may only exist in the other).
+                logger.info(
+                    "AuditPlanner: no %s quiz matching %r in course %d — skipping",
+                    scope.engine, scope.quiz_query, scope.course_id,
+                )
+                return AuditPlan(steps=[], scope=scope)
             for quiz in quizzes:
                 sub_scope = _replace_scope(
                     scope, quiz_id=quiz.quiz_id, quiz_query=None,

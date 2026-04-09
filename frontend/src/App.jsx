@@ -54,8 +54,10 @@ export default function App() {
               <div className={styles.card}>
                 <h2 className={styles.cardTitle}>Configure audit</h2>
                 <AuditForm
-                  onSubmit={audit.startAudit}
+                  onSubmit={(payload, setFormError) => audit.startAudit(payload, setFormError)}
+                  onAbort={audit.abortAudit}
                   disabled={isRunning}
+                  running={isRunning}
                 />
               </div>
 

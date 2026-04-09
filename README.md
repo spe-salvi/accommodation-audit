@@ -1,6 +1,6 @@
 # Accommodation Audit System
 
-An async Python tool that audits student quiz accommodations across an institution's Canvas LMS instance — verifying that extra time, extra attempts, and spell-check settings are correctly applied at scale.
+An async Python tool and web application that audits student quiz accommodations across an institution's Canvas LMS instance — verifying that extra time, extra attempts, and spell-check settings are correctly applied at scale.
 
 ## Acknowledgments
 
@@ -17,58 +17,57 @@ As an Instructional Technologist and LMS administrator, I discovered three compo
 2. **No existing tooling.** Canvas has no built-in accommodation audit report. The data needed to verify accommodations lives across several different API endpoints — some of which behave differently for "classic" vs. "new" quizzes.
 3. **Real compliance gaps.** Students were not always receiving the accommodations they were entitled to, and there was no systematic way to catch it before (or after) the fact.
 
-This tool automates the entire audit: it pulls participant, submission, quiz, and item-level data from Canvas, evaluates each student's accommodation status, and produces a structured Excel report that can span a single quiz, a course, a term, or a single student's full enrollment history.
+This tool automates the entire audit: it pulls participant, submission, quiz, and item-level data from Canvas, evaluates each student's accommodation status, and produces a structured Excel report. It is accessible as both a command-line tool and a hosted web application.
 
 ---
 
 ## Architecture
 
-The system follows a layered architecture with clear separation of concerns:
-
 ```
-┌──────────────────────────────────────────────────────────┐
-│                      CLI  (main.py)                       │  Entry point
-│  Parses flags, builds dependency graph, runs pipeline     │
-└──────────────┬───────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────┐
+│           CLI (main.py)          │      Web API (api/main.py)         │  Entry points
+│  click flags → AuditScope        │  FastAPI + SSE → AuditScope        │
+└──────────────────┬───────────────┴──────────────────┬────────────────┘
+                   │                                   │
+           ┌───────▼───────────────────────────────────▼──────┐
+           │              AuditPlanner (audit/planner.py)      │  Orchestration
+           │  Resolves scope → AuditPlan → executes steps      │
+           │  Fuzzy search via Resolver (audit/resolver.py)    │
+           └───────────────────┬───────────────────────────────┘
+                               │ delegates to
+                       ┌───────▼──────────────────┐
+                       │   AccommodationService   │  Business logic
+                       │  audit_course / quiz     │  Evaluates accommodations,
+                       │  (evaluation primitives) │  builds AuditRow objects
+                       └───────┬──────────────────┘
+                               │ reads via
+        ┌──────────────────────▼──────────────────────────────┐
+        │            AccommodationRepo  (Protocol)              │  Data access
+        ├──────────────────┬──────────────────────────────────┤
+        │    CanvasRepo    │            JsonRepo               │  Implementations
+        │    (live API)    │       (local JSON, dev/test)      │
+        └──────┬───────────┴──────────────────────────────────┘
                │
-       ┌───────▼──────────────────┐
-       │   AccommodationService   │  Business logic
-       │  audit_term / audit_user │  Evaluates accommodations,
-       │  audit_course / quiz     │  builds AuditRow objects
-       └───────┬──────────────────┘
-               │ reads via
-┌──────────────▼──────────────────────────────────────────┐
-│            AccommodationRepo  (Protocol)                  │  Data access
-│  Abstract interface — callers never see the data source  │
-├──────────────┬──────────────────────────────────────────┤
-│  CanvasRepo  │              JsonRepo                      │  Implementations
-│  (live API)  │         (local JSON, dev/test)             │
-└──────┬───────┴──────────────────────────────────────────┘
-       │
-┌──────▼───────────────────────────────────────────────────┐
-│  CanvasClient  ·  NewQuizClient  ·  PersistentCache       │  Transport + caching
-│  Auth, pagination, retries, TTL cache (terms/courses/     │
-│  quizzes/users), LTI session management via Playwright    │
-└──────────────────────────────────────────────────────────┘
+        ┌──────▼───────────────────────────────────────────────┐
+        │  CanvasClient · NewQuizClient · PersistentCache       │  Transport + caching
+        └──────────────────────────────────────────────────────┘
                │
-┌──────────────▼──────────────────────────────────────────┐
-│               Enricher  →  Reporter  →  Metrics           │  Output pipeline
-│  Human-readable fields (term/user names), Excel report,   │
-│  per-run summary (API calls, cache hit rates, timings)    │
-└──────────────────────────────────────────────────────────┘
+        ┌──────▼───────────────────────────────────────────────┐
+        │               Enricher → Reporter → Metrics           │  Output pipeline
+        └──────────────────────────────────────────────────────┘
 ```
 
-**Why two repository implementations?** `JsonRepo` loads data from local JSON files and is essential for development and testing without hitting the Canvas API. `CanvasRepo` is the production implementation. Both conform to the same `AccommodationRepo` protocol, so the business logic layer is completely unaware of the data source.
+**Why two entry points?** The CLI and web API both import from the same `audit/` package. The web layer adds SSE-based progress streaming and a React frontend; the CLI remains fully functional for scripted or scheduled use.
 
-**Why a separate `CanvasClient`?** The Canvas API has its own pagination scheme (RFC 5988 `Link` headers) and response wrapping conventions. `CanvasClient` owns those concerns — auth, pagination, retries, caching — so that `CanvasRepo` can focus purely on mapping API responses to domain models.
+**Why a Planner?** `AuditPlanner` owns traversal — what to fetch and in what order — leaving `AccommodationService` focused purely on evaluation. The planner resolves a scope (term/course/quiz/user, by ID or name) into a deduplicated list of `AuditStep` objects and executes them concurrently.
 
-**Why an `Enricher`?** The audit phase answers one question: does this student have this accommodation? Display concerns (what is this user's name, what term is this?) are a separate responsibility. The `Enricher` runs after the audit, resolves human-readable fields from cached API data, and never touches audit evaluation logic.
+**Why a Resolver?** Fuzzy search requires resolution logic separate from the planner. `Resolver` routes to Canvas's `search_term` API for courses and users, and filters locally for terms and quiz titles (no Canvas endpoint exists for those).
+
+**Why an Enricher?** The audit phase answers one question: does this student have this accommodation? Display concerns (term name, user name) are a separate responsibility handled after the fact with aggressive caching.
 
 ---
 
 ## Accommodation Data Sources
-
-Different accommodation types pull from different API surfaces. The service layer routes automatically:
 
 | Type            | Engine  | Source                             | API Required              |
 |-----------------|---------|------------------------------------|---------------------------|
@@ -79,7 +78,7 @@ Different accommodation types pull from different API surfaces. The service laye
 | `SPELL_CHECK`   | new     | Quiz item `interaction_data`       | Canvas REST API           |
 | `SPELL_CHECK`   | classic | N/A — not supported in classic     | —                         |
 
-Only `EXTRA_TIME` on new quizzes requires the LTI session. All other types use the standard Canvas REST API.
+Only `EXTRA_TIME` on new quizzes requires the LTI session.
 
 ---
 
@@ -90,17 +89,15 @@ The New Quizzes service uses a Bearer token issued during the LTI launch handsha
 1. A headless browser logs into Canvas via the admin backdoor.
 2. Playwright navigates to each New Quiz assignment page to trigger the LTI launch.
 3. The Bearer token and LTI assignment ID are extracted from the launch response.
-4. The token is held in memory for the run; LTI ID mappings are persisted to `.lti_id_cache.json` so Playwright only runs for new (unseen) quizzes on subsequent runs.
+4. The token is held in memory; LTI ID mappings are persisted to `.lti_id_cache.json` so Playwright only runs for new (unseen) quizzes on subsequent runs.
 
-The token is account-scoped — one login session serves all quizzes across the institution. If the token expires mid-audit (HTTP 401), the client re-acquires it and retries once automatically.
+The token is account-scoped — one login session serves all quizzes across the institution. HTTP 401 mid-audit triggers automatic token refresh and one retry.
 
 ---
 
 ## Caching
 
-Two cache layers minimize Canvas API calls:
-
-**Runtime cache** (`RequestCache`) — in-memory, per-run. Identical HTTP requests within a single audit run are served from memory. Automatically deduplicates calls when the same course or quiz data is needed for multiple accommodation types.
+**Runtime cache** (`RequestCache`) — in-memory, per-run. Deduplicates identical HTTP requests within a single run.
 
 **Persistent cache** (`PersistentCache`) — file-backed JSON under `.cache/`, survives across runs:
 
@@ -111,9 +108,7 @@ Two cache layers minimize Canvas API calls:
 | Quizzes  | 1 day   | Instructors may edit quizzes during a term  |
 | Users    | 1 year  | Name/SIS ID changes are rare                |
 
-Submissions, participants, and quiz items are intentionally not cached — they must always reflect the current state of Canvas.
-
-On a warm cache, a full term audit (1,142 courses) that takes ~7 minutes on first run completes in ~2 minutes on subsequent runs, with the remaining time spent on submission fetches that cannot be cached.
+Submissions, participants, and quiz items are intentionally not cached. On a warm cache, a full term audit (1,142 courses) completes in ~2 minutes vs. ~7 minutes cold.
 
 ---
 
@@ -126,6 +121,7 @@ cd accommodation-audit
 python -m venv .venv
 source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
+pip install -r requirements-api.txt   # web app only
 
 # Required for new quiz extra-time audits only
 playwright install chromium
@@ -149,81 +145,77 @@ cp .example.env .env
 
 ## Usage
 
+### CLI
+
 ```bash
-# Audit an entire term (both engines, all accommodation types)
+# Audit by Canvas ID
 python main.py audit --term 117
-
-# Audit a single course, classic engine only
 python main.py audit --course 12977 --engine classic
-
-# Audit a specific quiz, extra time only
-python main.py audit --quiz 48379 --engine new --types extra_time
-
-# Audit a specific student across all their active enrollments
 python main.py audit --user 99118
 
-# Audit a specific student in a specific term
+# Audit by name (fuzzy search)
+python main.py audit --term "Spring 2026"
+python main.py audit --term "Spring" --course "Moral Principles"
+python main.py audit --user "McCarthy"
+python main.py audit --user "2621872"           # SIS user ID
+
+# Combined scope
 python main.py audit --user 99118 --term 117
+python main.py audit --course 12977 --quiz "Midterm"
 
-# Audit a specific student in a specific course
-python main.py audit --user 99118 --course 12977
-
-# Force re-fetch of quiz data before auditing
+# Cache and output options
 python main.py audit --term 117 --refresh-entity quizzes
-
-# Save to a specific path, disable progress bars (e.g. for cron)
 python main.py audit --term 117 --output /reports/sp26.xlsx --no-progress
-
-# View persistent cache statistics
 python main.py cache-stats
 ```
 
-### Scope Rules
+`--term`, `--course`, `--quiz`, and `--user` each accept either a Canvas integer ID or a name/search string. When a name matches multiple entities, all matches are audited. Course name search requires `--term`; quiz title search requires `--course`.
 
-Without `--user`: supply exactly one of `--term`, `--course`, or `--quiz`.
+### Web App
 
-With `--user`: `--user` alone is valid (audits all active enrollments), or combine with one optional scope flag:
+```bash
+# Backend
+uvicorn api.main:app --reload --host 0.0.0.0 --port 8000
 
-| Combination              | Behaviour                                                   |
-|--------------------------|-------------------------------------------------------------|
-| `--user`                 | All quizzes across all active enrollments                   |
-| `--user --term`          | All quizzes in that term for that student                   |
-| `--user --course`        | All quizzes in that course for that student                 |
-| `--user --course --quiz` | One quiz for that student                                   |
+# Frontend dev server (separate terminal)
+cd frontend && npm install && npm run dev
+# → http://localhost:5173
+```
 
-User-scoped audits use the Canvas enrollments endpoint to discover only the courses the student is actually enrolled in — avoiding a full-term scan.
+The web app provides a form-based audit interface with real-time SSE progress, a filterable results table, Excel download, and a cache management dashboard. In production the built React frontend is served as static files from FastAPI.
 
 ---
 
 ## Output
 
-Results are written to an Excel workbook (`.xlsx`) with one row per user-accommodation-quiz combination. Rows where `has_accommodation=True` are highlighted green; `False` rows are highlighted yellow.
+Results are written to an Excel workbook with one row per user-accommodation-quiz combination. Green rows have the accommodation applied; yellow rows are missing it.
 
 | Column group | Columns |
 |---|---|
-| Term    | `enrollment_term_id`, `term_name` |
-| Course  | `course_id`, `course_name`, `course_code`, `sis_course_id` |
-| Quiz    | `quiz_id`, `quiz_title`, `quiz_due_at`, `quiz_lock_at` |
+| Term     | `enrollment_term_id`, `term_name` |
+| Course   | `course_id`, `course_name`, `course_code`, `sis_course_id` |
+| Quiz     | `quiz_id`, `quiz_title`, `quiz_due_at`, `quiz_lock_at` |
 | Identity | `engine`, `accommodation_type`, `user_id`, `user_name`, `sis_user_id`, `item_id` |
-| Result  | `has_accommodation`, `completed`, `attempts_left` |
-| Details | `extra_time`, `extra_time_in_seconds`, `timer_multiplier_value`, `extra_attempts`, `spell_check`, `position` |
+| Result   | `has_accommodation`, `completed`, `attempts_left` |
+| Details  | `extra_time`, `extra_time_in_seconds`, `timer_multiplier_value`, `extra_attempts`, `spell_check`, `position` |
 
-Every run also prints a summary to the terminal and log file:
+Every run prints a summary:
 
 ```
 ────────────────────────────────────────────────
 Run summary
-  Rows:      54,844
+  Rows:      58,174
 
-  Audit:     2m 6s
-  Enrich:    12s
-  Write:     7s
-  Total:     2m 25s
+  Audit:     1m 59s
+  Enrich:    0s
+  Write:     15s
+  Total:     2m 16s
 
-  API calls: 1,142
+  API calls: 5,179
+  P-cache:   3,004 hits / 0 misses (100%)
   RT cache:  847 hits / 1,989 misses (30%)
-  Users:     487 fetched, 0 from cache
-  Terms:     served from cache
+  Users:     2,911 resolved
+  Terms:     1 resolved
 ────────────────────────────────────────────────
 ```
 
@@ -234,7 +226,14 @@ Run summary
 ```
 accommodation-audit/
 ├── .cache/                         ← gitignored; persistent cache files
-├── audit/
+├── api/                            Web API layer (FastAPI)
+│   ├── main.py                     FastAPI app + static file serving
+│   ├── models.py                   Pydantic request/response models
+│   ├── jobs.py                     In-memory job store + background task runner
+│   └── routes/
+│       ├── audit.py                POST /audit, SSE stream, rows, download
+│       └── cache.py                Cache stats and invalidation endpoints
+├── audit/                          Core Python package (shared by CLI and web)
 │   ├── cache/
 │   │   ├── lti_id_cache.py         Persistent Canvas → LTI assignment ID mapping
 │   │   ├── persistent.py           TTL-based file cache (terms, courses, quizzes, users)
@@ -253,38 +252,67 @@ accommodation-audit/
 │   │   ├── canvas_repo.py          Live Canvas API implementation (with persistent cache)
 │   │   └── json_repo.py            Local JSON implementation (development + testing)
 │   ├── services/
-│   │   └── accommodations.py       Evaluation logic + audit_term/course/quiz/user
+│   │   └── accommodations.py       Evaluation logic + audit_course/quiz/user wrappers
 │   ├── config.py                   Environment-based settings (python-dotenv)
 │   ├── enrichment.py               Post-audit: term names, user display data
 │   ├── exceptions.py               Domain exception hierarchy (AuditError tree)
 │   ├── logging_setup.py            Rotating file log configuration
 │   ├── metrics.py                  RunMetrics collection and formatted summary
-│   └── reporting.py                Excel report writer (pandas + xlsxwriter)
-├── dumps/                          Sample Canvas API response fixtures (for testing)
-├── logs/                           ← gitignored; rotating audit log files
+│   ├── planner.py                  AuditScope → AuditPlan → execution
+│   ├── reporting.py                Excel report writer (pandas + xlsxwriter)
+│   └── resolver.py                 Fuzzy name resolution → Canvas IDs
+├── frontend/                       React web frontend (Vite)
+│   ├── index.html
+│   ├── package.json
+│   ├── vite.config.js
+│   └── src/
+│       ├── App.jsx + App.module.css
+│       ├── index.css               Design tokens
+│       ├── hooks/useAudit.js       SSE job lifecycle hook
+│       └── components/
+│           ├── AuditForm.jsx       Scope inputs (ID or name)
+│           ├── ProgressView.jsx    Live progress + metrics summary
+│           ├── ResultsTable.jsx    Filterable results + Excel download
+│           └── CacheStats.jsx      Cache dashboard with invalidation
+├── dumps/                          Sample Canvas API response fixtures
+├── logs/                           ← gitignored; rotating log files
 ├── scripts/
-│   └── test_lti_session.py         Manual LTI session verification script
+│   └── test_lti_session.py         Manual LTI session verification
 ├── tests/
-│   ├── integration/                Live Canvas API tests (require .env credentials)
+│   ├── integration/
 │   │   ├── conftest.py
 │   │   └── test_canvas_repo.py
-│   └── unit/                       Business logic tests (no network required)
+│   └── unit/
 │       ├── conftest.py
 │       ├── test_audit_classic.py
 │       ├── test_audit_new.py
 │       ├── test_audit_user.py
 │       ├── test_cache.py
+│       ├── test_cli_helpers.py
 │       ├── test_concurrency.py
 │       ├── test_enrichment.py
+│       ├── test_metrics.py
 │       ├── test_persistent_cache.py
+│       ├── test_planner.py
 │       ├── test_repo_catalog.py
+│       ├── test_resolver.py
 │       └── test_retry.py
 ├── main.py                         CLI entry point (click)
+├── render.yaml                     Render deployment configuration
 ├── pyproject.toml
 ├── requirements.txt
+├── requirements-api.txt            FastAPI + uvicorn (web app only)
 ├── README.md
 └── TODO.md
 ```
+
+---
+
+## Deployment (Render)
+
+The web app is configured for single-service deployment on Render's free tier via `render.yaml`. The build step installs Python dependencies and builds the React frontend; FastAPI serves both the API and the built static files from a single dyno.
+
+A 1GB persistent disk is mounted at `.cache/` so the TTL cache survives redeploys and restarts. Set the six Canvas environment variables in the Render dashboard before deploying.
 
 ---
 
@@ -296,69 +324,65 @@ python -m pytest -m "not integration" -v
 
 # Integration tests — requires .env with Canvas credentials
 python -m pytest -m integration -v
-
-# All tests
-python -m pytest
 ```
 
-The unit test suite covers:
-
-- Accommodation evaluation for both quiz engines and all types
-- Hierarchical auditing (quiz → course → term → user-scoped)
-- Bounded concurrency (semaphore limits, correct results under parallelism)
-- Runtime cache (hit/miss counting, key isolation, stats)
-- Persistent cache (TTL expiry, invalidation, corrupt file recovery, version mismatch)
-- Enricher (term/user lookup, batching, graceful failure, immutability of rows)
-- Retry decorator (retryable status codes, full jitter backoff, transport errors)
-- Repository catalog (quiz and submission indexing in JsonRepo)
+The unit test suite (222 tests) covers accommodation evaluation, planner traversal and deduplication, resolver fuzzy matching, CLI input parsing, concurrency, both cache layers, metrics, enrichment, and the retry decorator.
 
 ---
 
 ## Development History
 
-The project was built iteratively, starting from the narrowest possible scope and broadening only after each layer was solid.
+**Phase 1 — Local JSON proof of concept.** One course, one user, one quiz, one accommodation type. Data from local JSON files let the domain model take shape without network concerns.
 
-**Phase 1 — Local JSON proof of concept.** One course, one user, one quiz, one accommodation type (extra time on a new quiz). Data from JSON files saved from Canvas API responses. This let the domain model take shape without network concerns.
+**Phase 2 — Broadening scope.** All users, all quizzes, all courses, all accommodation types across both quiz engines.
 
-**Phase 2 — Broadening scope.** All users in a course, then additional accommodation types (extra attempts, classic quiz support, spell-check), then all quizzes in a course, then all courses in a term.
+**Phase 3 — Live Canvas API.** `CanvasClient`, `CanvasRepo`, and `NewQuizClient` (LTI via Playwright). Same business logic, zero upstream changes.
 
-**Phase 3 — Live Canvas API.** `CanvasClient` and `CanvasRepo` provide the production data layer. `NewQuizClient` handles the LTI participants endpoint via Playwright. The same business logic that passed tests against `JsonRepo` worked against the live API with zero changes.
+**Phase 4 — Stability.** Exception hierarchy, logging, retry with exponential backoff and full jitter, integration tests.
 
-**Phase 4 — Stability.** Exception hierarchy, structured logging, retry decorator with exponential backoff and full jitter, integration test suite.
+**Phase 5 — Performance.** Runtime cache, bounded concurrency via semaphores (10 courses in parallel), persistent TTL cache.
 
-**Phase 5 — Performance.** Runtime cache eliminates duplicate API calls within a run. Bounded concurrency via semaphores (10 courses in parallel) keeps Canvas rate limits from being exhausted. A term audit of 1,142 courses runs in ~2 minutes.
+**Phase 6 — CLI and reporting.** `click` CLI, Excel report via pandas + xlsxwriter, `tqdm` progress bars.
 
-**Phase 6 — CLI and reporting.** `click`-based CLI with `--term`, `--course`, `--quiz`, `--user`, `--engine`, `--types`, `--refresh-entity` flags. Excel report via `pandas` + `xlsxwriter`. `tqdm` progress bars for course auditing, enrichment, and file writing.
+**Phase 7 — Persistent cache.** TTL file cache for terms/courses/quizzes/users. Warm cache cuts term audits from 7 minutes to ~2 minutes.
 
-**Phase 7 — Persistent cache.** TTL-based file cache for terms, courses, quizzes, and users. Warm cache cuts repeated term audits from 7 minutes to ~2 minutes.
+**Phase 8 — Fuller reporting.** Bucket 1 enrichment (free from already-loaded objects). Bucket 2 enrichment via `Enricher` (term names, user display data, batched parallel fetches). Bucket 3 (quiz item position in spell-check rows).
 
-**Phase 8 — Fuller reporting.** `AuditRow` enriched with course name, quiz title, due/lock dates, attempts left (Bucket 1 — free from already-loaded objects). Term name and user display data added via the `Enricher` post-processing layer with batched parallel API calls and 1-year persistent caching (Bucket 2).
+**Phase 9 — User-scoped auditing.** `--user` flag with enrollment-based traversal across all scope combinations.
 
-**Phase 9 — User-scoped auditing.** `--user` CLI flag. Uses the Canvas enrollments endpoint to discover only the courses a student is enrolled in, avoiding full-term scans. Supports `user`, `user+term`, `user+course`, and `user+course+quiz` scope combinations.
+**Phase 10 — Metrics.** Per-run summary with API call counts, persistent and runtime cache hit rates, retries, and phase timings.
 
-**Phase 10 — Metrics.** Per-run summary showing API calls made, runtime cache hit rate, retry count, enrichment stats, and phase-by-phase timing. Collected at run end by querying existing objects — no shared mutable state threaded through the call stack.
+**Phase 11 — Planner.** `AuditPlanner` extracted from service layer. Owns traversal and deduplication. Multi-user queries deduplicate shared courses to avoid redundant fetches.
+
+**Phase 12 — Fuzzy search.** All four scope flags accept names as well as IDs. `Resolver` delegates course/user search to Canvas's `search_term` API; resolves terms and quizzes locally with token-based matching.
+
+**Phase 15 — React web frontend.** FastAPI backend with SSE progress streaming, in-memory background jobs, and Excel download. React + Vite frontend with audit form, live progress, filterable results table, and cache dashboard. Single-service deployment on Render.
 
 ---
 
 ## Key Design Decisions
 
-**Accommodation data source routing.** Different accommodation types pull from different APIs. `EXTRA_TIME` for new quizzes requires the LTI participants endpoint; `EXTRA_ATTEMPT` reads from Canvas submissions. This distinction is handled transparently by the service layer.
+**Planner owns traversal; service owns evaluation.** Extracting orchestration from the service layer gave each layer a single clear responsibility.
 
-**`AuditRow` carries two shapes.** A row can represent a per-user result (extra time, extra attempts) or a per-item result (spell-check on a specific question). A single row type was kept rather than splitting into two for simplicity; this is a candidate for future refactoring.
+**Multi-user queries deduplicate at the course level.** The planner builds a `{course_id: set[user_id]}` map so each unique course is audited exactly once regardless of how many matching users are enrolled in it.
 
-**Enricher as a separate post-processing layer.** Audit logic and display logic are different concerns. Keeping them separate makes the service layer independently testable and means the enrichment step can be skipped entirely in programmatic contexts where human-readable names aren't needed.
+**Resolver delegates to Canvas for courses and users; filters locally for terms and quizzes.** Canvas has no term or quiz search endpoint, so those filter locally against already-cached lists.
 
-**Semaphore at the course level, not the quiz level.** Early versions gated concurrency per quiz, which flooded Canvas with simultaneous requests across hundreds of courses. Moving the semaphore to gate entire course audits (10 at a time) keeps API request volume predictable.
+**`AuditRow` carries two shapes.** Per-user results and per-item spell-check results share one dataclass for simplicity. A candidate for future refactoring.
 
-**Async from the start, even for synchronous repos.** `JsonRepo` methods are `async` even though they do synchronous file reads. This meant the entire service layer was written with `await` from the beginning — when `CanvasRepo` arrived, zero changes were needed upstream.
+**Enricher as a separate post-processing layer.** Separating display concerns from audit evaluation makes both independently testable and lets the enrichment step be skipped in programmatic contexts.
 
-**Canvas's API inconsistencies are the real complexity.** The business logic for evaluating accommodations is straightforward. The hard part is normalizing API responses: IDs that are sometimes strings and sometimes ints, `course_id` fields absent from some endpoints and parsed from embedded URLs, two completely different API surfaces for classic vs. new quizzes.
+**Semaphore at the course level.** Course-level gating (10 at a time) keeps Canvas API request volume predictable without sacrificing throughput.
+
+**Async from the start.** `JsonRepo` methods are `async` despite synchronous file reads, so the service layer always used `await` — `CanvasRepo` slotted in with zero upstream changes.
+
+**Canvas's API inconsistencies are the real complexity.** IDs arrive as strings or ints. `course_id` is absent from some endpoints and parsed from embedded URLs. Classic and new quizzes have completely different API surfaces and accommodation semantics.
 
 ---
 
 ## Roadmap
 
-See [TODO.md](TODO.md) for the full phased roadmap. Upcoming work includes a DAG-based planner for smarter traversal, SIS name search (fuzzy matching for user lookup), and broader integration test coverage.
+See [TODO.md](TODO.md) for the full phased roadmap.
 
 ---
 
