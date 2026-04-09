@@ -88,10 +88,11 @@ class Enricher:
         self._term_name_by_id: dict[int, str] | None = None
         self._user_by_id: dict[int, User] = {}
         # Metrics counters — queryable via collect_metrics() at run end.
+        # Cache hit/miss counts are tracked on PersistentCache directly,
+        # since only the cache layer knows whether a hit was served from
+        # disk or required a Canvas API call.
         self.users_fetched: int = 0
-        self.users_from_cache: int = 0
         self.terms_fetched: int = 0
-        self.terms_from_cache: int = 0
 
     async def enrich(self, rows: list[AuditRow]) -> list[AuditRow]:
         """
@@ -149,7 +150,6 @@ class Enricher:
         Enricher instance. Updates ``terms_fetched`` or ``terms_from_cache``.
         """
         if self._term_name_by_id is not None:
-            self.terms_from_cache += 1
             return self._term_name_by_id
 
         try:

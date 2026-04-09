@@ -3,32 +3,32 @@ CLI entry point for the accommodation audit system.
 
 Usage examples
 --------------
-Audit an entire term (both engines):
+Audit by Canvas ID (original behaviour, unchanged):
     python main.py audit --term 117
-
-Audit a single course, classic engine only:
     python main.py audit --course 12977 --engine classic
-
-Audit a specific quiz, extra time only:
-    python main.py audit --quiz 48379 --engine new --types extra_time
-
-Audit a specific user across all enrollments:
     python main.py audit --user 99118
 
-Audit a specific user in a specific term:
-    python main.py audit --user 99118 --term 117
+Audit by name (fuzzy search):
+    python main.py audit --term "Spring 2026"
+    python main.py audit --term "Spring" --course "Moral Principles"
+    python main.py audit --user "McCarthy"
+    python main.py audit --user "2621872"           # SIS user ID
+    python main.py audit --term 117 --course "CHM-115"
+    python main.py audit --course 12977 --quiz "Midterm"
 
-Force a cache refresh for quizzes before auditing:
-    python main.py audit --term 117 --refresh-entity quizzes
-
-Inspect cache stats without running an audit:
-    python main.py cache-stats
+Combined name + ID:
+    python main.py audit --term 117 --user "Smith"  # all Smiths in term
 
 Scope rules
 -----------
 Without --user: supply exactly one of --term, --course, or --quiz.
 With --user:    --user alone is valid, or combine with one optional
                 scope flag (--term, --course, or --quiz).
+
+Course name/code search requires --term (Canvas course names are not
+globally unique across all terms).
+
+Quiz title search requires --course (Canvas has no account-level quiz search).
 """
 
 import asyncio
@@ -47,15 +47,17 @@ from audit.config import settings
 from audit.enrichment import Enricher
 from audit.logging_setup import setup_logging
 from audit.metrics import collect_metrics, format_metrics
+from audit.planner import AuditPlanner, AuditScope
 from audit.reporting import write_xlsx
 from audit.repos.base import AccommodationType
 from audit.repos.canvas_repo import CanvasRepo
+from audit.resolver import ResolveError
 from audit.services.accommodations import AccommodationService
 
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Helpers
+# Constants
 # ---------------------------------------------------------------------------
 
 _TYPE_MAP: dict[str, AccommodationType] = {
@@ -75,38 +77,108 @@ _ALL_ENGINES = ["new", "classic"]
 _CACHE_DIR = Path(".cache")
 
 
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
 def _default_output_path() -> Path:
     ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     return Path(f"audit_{ts}.xlsx")
 
 
-def _fmt_elapsed(seconds: float) -> str:
-    seconds = int(seconds)
-    if seconds >= 60:
-        return f"{seconds // 60}m {seconds % 60}s"
-    return f"{seconds}s"
+def _parse_id_or_query(value: str | None) -> tuple[int | None, str | None]:
+    """
+    Split a CLI value into (int_id, query_string).
 
+    If the value looks like a plain integer, return (int, None).
+    Otherwise treat it as a name query and return (None, str).
+    Returns (None, None) if value is None.
+    """
+    if value is None:
+        return None, None
+    try:
+        return int(value), None
+    except (ValueError, TypeError):
+        return None, value
+
+
+def _build_scope(
+    *,
+    engine: str,
+    types: list[AccommodationType],
+    term: str | None,
+    course: str | None,
+    quiz: str | None,
+    user: str | None,
+) -> AuditScope:
+    """
+    Parse CLI flag values into an AuditScope, routing each value to
+    either an ID field or a query field depending on whether it parses
+    as an integer.
+    """
+    term_id,   term_query   = _parse_id_or_query(term)
+    course_id, course_query = _parse_id_or_query(course)
+    quiz_id,   quiz_query   = _parse_id_or_query(quiz)
+    user_id,   user_query   = _parse_id_or_query(user)
+
+    return AuditScope(
+        engine=engine,
+        accommodation_types=types,
+        term_id=term_id,
+        term_query=term_query,
+        course_id=course_id,
+        course_query=course_query,
+        quiz_id=quiz_id,
+        quiz_query=quiz_query,
+        user_id=user_id,
+        user_query=user_query,
+    )
+
+
+def _scope_desc(scope: AuditScope) -> str:
+    """Human-readable description of the scope for the CLI announce line."""
+    parts = []
+    if scope.user_id is not None:
+        parts.append(f"user={scope.user_id}")
+    if scope.user_query is not None:
+        parts.append(f"user={scope.user_query!r}")
+    if scope.term_id is not None:
+        parts.append(f"term={scope.term_id}")
+    if scope.term_query is not None:
+        parts.append(f"term={scope.term_query!r}")
+    if scope.course_id is not None:
+        parts.append(f"course={scope.course_id}")
+    if scope.course_query is not None:
+        parts.append(f"course={scope.course_query!r}")
+    if scope.quiz_id is not None:
+        parts.append(f"quiz={scope.quiz_id}")
+    if scope.quiz_query is not None:
+        parts.append(f"quiz={scope.quiz_query!r}")
+    return " ".join(parts)
+
+
+# ---------------------------------------------------------------------------
+# Audit pipeline
+# ---------------------------------------------------------------------------
 
 async def _run_audit(
     *,
-    user_id: int | None,
-    term_id: int | None,
-    course_id: int | None,
-    quiz_id: int | None,
+    scope_template: AuditScope,
     engines: list[str],
-    types: list[AccommodationType],
     output_path: Path,
     show_progress: bool,
     persistent_cache: PersistentCache,
 ) -> None:
     """
-    Build the full dependency chain, run the audit, enrich, and write.
+    Build the full dependency chain, plan, audit, enrich, and write.
 
-    Pipeline:
-        1. Audit  — AccommodationService produces raw AuditRow list
-        2. Enrich — Enricher fills in term_name, user_name, sis_user_id
-        3. Write  — write_xlsx produces the Excel report
-        4. Metrics — collect and display run summary
+    Pipeline
+    --------
+    1. Plan   — AuditPlanner resolves scope (including name queries) into steps
+    2. Audit  — AccommodationService evaluates each step
+    3. Enrich — Enricher fills in term/user display data
+    4. Write  — write_xlsx produces the Excel report
+    5. Metrics — collect and display run summary
     """
     runtime_cache = RequestCache()
 
@@ -125,59 +197,45 @@ async def _run_audit(
         svc = AccommodationService(repo)
         enricher = Enricher(repo=repo, show_progress=show_progress)
 
-        # --- Phase 1: Audit ---
+        # --- Phase 1 + 2: Plan and Audit ---
         audit_start = time.perf_counter()
-        tasks = []
-        for eng in engines:
-            if user_id is not None:
-                tasks.append(svc.audit_user(
-                    user_id=user_id,
-                    engine=eng,
-                    accommodation_types=types,
-                    term_id=term_id,
-                    course_id=course_id,
-                    quiz_id=quiz_id,
-                    show_progress=show_progress,
-                ))
-            elif term_id is not None:
-                tasks.append(svc.audit_term(
-                    term_id=term_id,
-                    engine=eng,
-                    accommodation_types=types,
-                    show_progress=show_progress,
-                ))
-            elif course_id is not None:
-                tasks.append(svc.audit_course(
-                    course_id=course_id,
-                    engine=eng,
-                    accommodation_types=types,
-                ))
-            elif quiz_id is not None:
-                tasks.append(svc.audit_quiz(
-                    course_id=quiz_id,
-                    quiz_id=quiz_id,
-                    engine=eng,
-                    accommodation_types=types,
-                ))
 
-        results = await asyncio.gather(*tasks)
-        rows = [row for engine_rows in results for row in engine_rows]
+        from dataclasses import replace as _dc_replace
+        scopes = [
+            _dc_replace(scope_template, engine=eng)
+            for eng in engines
+        ]
+
+        planner = AuditPlanner(repo)
+
+        try:
+            plans = await asyncio.gather(*[planner.build(s) for s in scopes])
+        except ResolveError as exc:
+            raise click.ClickException(str(exc)) from exc
+
+        engine_results = await asyncio.gather(*[
+            plan.execute(svc, semaphore=svc._semaphore, show_progress=show_progress)
+            for plan in plans
+        ])
+
+        rows = [row for engine_rows in engine_results for row in engine_rows]
         audit_elapsed = time.perf_counter() - audit_start
 
-        # --- Phase 2: Enrich ---
+        # --- Phase 3: Enrich ---
         enrich_start = time.perf_counter()
         rows = await enricher.enrich(rows)
         enrich_elapsed = time.perf_counter() - enrich_start
 
-    # --- Phase 3: Write ---
+    # --- Phase 4: Write ---
     write_start = time.perf_counter()
     write_xlsx(rows, output_path, show_progress=show_progress)
     write_elapsed = time.perf_counter() - write_start
 
-    # --- Phase 4: Metrics ---
+    # --- Phase 5: Metrics ---
     metrics = collect_metrics(
         client=client,
         runtime_cache=runtime_cache,
+        persistent_cache=persistent_cache,
         enricher=enricher,
         audit_elapsed=audit_elapsed,
         enrich_elapsed=enrich_elapsed,
@@ -200,14 +258,14 @@ def cli() -> None:
 
 
 @cli.command()
-@click.option("--term",   "term_id",   type=int, default=None,
-              help="Canvas enrollment term ID.")
-@click.option("--course", "course_id", type=int, default=None,
-              help="Canvas course ID.")
-@click.option("--quiz",   "quiz_id",   type=int, default=None,
-              help="Canvas quiz or assignment ID.")
-@click.option("--user",   "user_id",   type=int, default=None,
-              help="Canvas user ID. Can be combined with --term, --course, or --quiz.")
+@click.option("--term",   "term",   type=str, default=None,
+              help="Term ID or name (e.g. 117 or 'Spring 2026').")
+@click.option("--course", "course", type=str, default=None,
+              help="Course ID, name, code, or SIS ID. Requires --term for name search.")
+@click.option("--quiz",   "quiz",   type=str, default=None,
+              help="Quiz ID or title. Requires --course for title search.")
+@click.option("--user",   "user",   type=str, default=None,
+              help="User ID, name, or SIS user ID.")
 @click.option(
     "--engine",
     type=click.Choice(["new", "classic", "all"], case_sensitive=False),
@@ -239,10 +297,10 @@ def cli() -> None:
 @click.option("--no-progress", is_flag=True, default=False,
               help="Disable progress bars.")
 def audit(
-    term_id: int | None,
-    course_id: int | None,
-    quiz_id: int | None,
-    user_id: int | None,
+    term: str | None,
+    course: str | None,
+    quiz: str | None,
+    user: str | None,
     engine: str,
     types: tuple[str, ...],
     output: Path | None,
@@ -253,6 +311,10 @@ def audit(
     """
     Run an accommodation audit and write results to Excel.
 
+    --term, --course, --quiz, and --user each accept either a Canvas ID
+    (integer) or a name/search string. When a name matches multiple
+    entities, all matches are audited.
+
     Without --user: supply exactly one of --term, --course, or --quiz.
     With --user:    --user alone is valid, or combine with one optional
                     scope flag (--term, --course, or --quiz).
@@ -260,45 +322,58 @@ def audit(
     \b
     Examples:
         python main.py audit --term 117
-        python main.py audit --course 12977 --engine classic
-        python main.py audit --user 99118
+        python main.py audit --term "Spring 2026"
+        python main.py audit --term "Spring" --course "Moral Principles"
+        python main.py audit --user "McCarthy"
         python main.py audit --user 99118 --term 117
         python main.py audit --term 117 --refresh-entity quizzes
     """
+    # --- Logging ---
     log_level = logging.DEBUG if debug else logging.WARNING
     log_file = setup_logging(level=log_level)
     if debug:
         click.echo(f"Debug logging → {log_file}")
 
     # --- Validate scope ---
-    scope_args = {"term": term_id, "course": course_id, "quiz": quiz_id}
-    provided_scopes = {k: v for k, v in scope_args.items() if v is not None}
+    provided = {k: v for k, v in {"term": term, "course": course, "quiz": quiz}.items()
+                if v is not None}
 
-    if user_id is not None:
-        if len(provided_scopes) > 1:
+    if user is not None:
+        if len(provided) > 1:
             raise click.UsageError(
                 f"--user can be combined with at most one scope flag — got: "
-                f"{', '.join(f'--{k}' for k in provided_scopes)}."
+                f"{', '.join(f'--{k}' for k in provided)}."
             )
-        if quiz_id is not None and course_id is None:
-            raise click.UsageError(
-                "--quiz requires --course when used with --user."
-            )
+        if quiz is not None and course is None:
+            raise click.UsageError("--quiz requires --course when used with --user.")
     else:
-        if len(provided_scopes) == 0:
+        if len(provided) == 0:
             raise click.UsageError(
                 "Supply exactly one scope flag: --term, --course, or --quiz. "
                 "Or use --user to audit a specific student."
             )
-        if len(provided_scopes) > 1:
+        if len(provided) > 1:
             raise click.UsageError(
                 f"Supply exactly one scope flag — got: "
-                f"{', '.join(f'--{k}' for k in provided_scopes)}."
+                f"{', '.join(f'--{k}' for k in provided)}."
             )
+
+    # --- Validate name-search context requirements ---
+    _, course_q = _parse_id_or_query(course)
+    _, quiz_q   = _parse_id_or_query(quiz)
+    if course_q is not None and term is None:
+        raise click.UsageError(
+            f"Course name search ({course!r}) requires --term to scope the search. "
+            f"Add --term <id or name>."
+        )
+    if quiz_q is not None and course is None:
+        raise click.UsageError(
+            f"Quiz title search ({quiz!r}) requires --course. "
+            f"Add --course <id or name>."
+        )
 
     # --- Persistent cache ---
     persistent_cache = PersistentCache(_CACHE_DIR)
-
     if refresh_entity is not None:
         entity = _ENTITY_MAP[refresh_entity]
         count = persistent_cache.invalidate(entity)
@@ -310,34 +385,29 @@ def audit(
     output_path = output or _default_output_path()
     show_progress = not no_progress
 
-    # --- Announce ---
-    scope_desc = (
-        f"user={user_id}"
-        + (f" term={term_id}"   if term_id   else "")
-        + (f" course={course_id}" if course_id else "")
-        + (f" quiz={quiz_id}"   if quiz_id   else "")
-        if user_id is not None
-        else next(f"{k}={v}" for k, v in provided_scopes.items())
+    # Build a template scope (engine overridden per-engine inside _run_audit)
+    scope_template = _build_scope(
+        engine=engines[0],
+        types=accommodation_types,
+        term=term,
+        course=course,
+        quiz=quiz,
+        user=user,
     )
+
     click.echo(
-        f"Auditing {scope_desc} | "
+        f"Auditing {_scope_desc(scope_template)} | "
         f"engine={engine} | "
         f"types={list(types or _TYPE_MAP.keys())}"
     )
 
-    asyncio.run(
-        _run_audit(
-            user_id=user_id,
-            term_id=term_id,
-            course_id=course_id,
-            quiz_id=quiz_id,
-            engines=engines,
-            types=accommodation_types,
-            output_path=output_path,
-            show_progress=show_progress,
-            persistent_cache=persistent_cache,
-        )
-    )
+    asyncio.run(_run_audit(
+        scope_template=scope_template,
+        engines=engines,
+        output_path=output_path,
+        show_progress=show_progress,
+        persistent_cache=persistent_cache,
+    ))
 
 
 @cli.command("cache-stats")
@@ -347,15 +417,12 @@ def cache_stats() -> None:
     stats = cache.stats()
 
     click.echo(f"\nCache directory: {_CACHE_DIR.resolve()}\n")
-    click.echo(
-        f"{'Entity':<10} {'Total':>7} {'Valid':>7} {'Expired':>9} {'TTL':>10}"
-    )
+    click.echo(f"{'Entity':<10} {'Total':>7} {'Valid':>7} {'Expired':>9} {'TTL':>10}")
     click.echo("-" * 48)
     for entity, info in stats.items():
         ttl_hours = info["ttl_hours"]
         ttl_str = (
-            f"{int(ttl_hours)}h"
-            if ttl_hours < 24
+            f"{int(ttl_hours)}h" if ttl_hours < 24
             else f"{int(ttl_hours // 24)}d"
         )
         click.echo(

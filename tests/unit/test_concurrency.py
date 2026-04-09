@@ -1,20 +1,28 @@
 """
-Unit tests for bounded concurrency in AccommodationService.
+Unit tests for bounded concurrency in AccommodationService + AuditPlanner.
 
-The semaphore now gates courses (not quizzes) — at most N courses
-are processed concurrently in audit_term. Within each course, quizzes
-run sequentially.
+The semaphore gates concurrent course-level work. It lives on
+AccommodationService and is passed into AuditPlan.execute() by the
+audit_term / audit_user convenience wrappers.
 
 Tests that:
   - The semaphore limits concurrent courses in audit_term
   - A limit of 1 forces sequential course processing
+  - Multiple courses can run concurrently with a generous limit
   - Results are correct regardless of execution order
   - audit_course still produces rows for all quizzes
   - AccommodationService works without an explicit semaphore
 
-Strategy: patch _audit_course_with_semaphore with a mock that acquires
-the semaphore and records peak in-flight count with a brief sleep so
-the event loop can interleave tasks.
+Patching strategy
+-----------------
+The planner's _execute_step acquires the semaphore, then calls
+svc.audit_course. We replace svc.audit_course with a mock that:
+  - Does NOT re-acquire the semaphore (the planner already holds it)
+  - Records peak in-flight count using a sleep to allow interleaving
+
+If the mock re-acquired the semaphore, each task would need two slots
+(one from _execute_step, one from the mock), which deadlocks when
+fewer slots are available than courses in the term.
 """
 
 import asyncio
@@ -28,26 +36,23 @@ from audit.services.accommodations import AccommodationService
 
 def _make_concurrency_tracking_patch(svc: AccommodationService) -> dict:
     """
-    Replace svc._audit_course_with_semaphore with a mock that:
-      - Acquires the semaphore (as the real method does)
-      - Tracks how many calls are in-flight simultaneously
-      - Records the peak concurrency seen
-      - Holds the slot briefly so other tasks can queue up
-      - Returns [] (no rows needed for concurrency tests)
+    Replace svc.audit_course with a mock that tracks in-flight concurrency.
 
-    Returns in_flight counter dict.
+    The mock does NOT acquire the semaphore — _execute_step in the planner
+    already holds it when audit_course is called. Adding another acquire
+    here would cause each task to need two semaphore slots, deadlocking
+    when the limit is less than the number of courses.
     """
     in_flight = {"count": 0, "peak": 0}
 
     async def tracked(**kwargs):
-        async with svc._semaphore:
-            in_flight["count"] += 1
-            in_flight["peak"] = max(in_flight["peak"], in_flight["count"])
-            await asyncio.sleep(0.01)
-            in_flight["count"] -= 1
+        in_flight["count"] += 1
+        in_flight["peak"] = max(in_flight["peak"], in_flight["count"])
+        await asyncio.sleep(0.01)   # yield so other tasks can start
+        in_flight["count"] -= 1
         return []
 
-    svc._audit_course_with_semaphore = tracked
+    svc.audit_course = tracked
     return in_flight
 
 
@@ -57,8 +62,7 @@ def _make_concurrency_tracking_patch(svc: AccommodationService) -> dict:
 
 async def test_audit_term_respects_semaphore_limit(new_repo):
     """
-    With a semaphore limit of 2, peak concurrency should never exceed 2
-    even when the term has many courses.
+    With a semaphore limit of 2, at most 2 courses should run simultaneously.
     """
     limit = 2
     svc = AccommodationService(new_repo, semaphore=asyncio.Semaphore(limit))
@@ -82,7 +86,8 @@ async def test_audit_term_limit_1_is_sequential(new_repo):
 async def test_audit_term_runs_courses_concurrently(new_repo):
     """
     With a generous semaphore limit, multiple courses should be
-    in-flight simultaneously.
+    in-flight simultaneously. The sleep inside the mock gives the
+    event loop time to start other tasks before the first completes.
     """
     limit = 20
     svc = AccommodationService(new_repo, semaphore=asyncio.Semaphore(limit))
@@ -90,12 +95,12 @@ async def test_audit_term_runs_courses_concurrently(new_repo):
 
     await svc.audit_term(term_id=117, engine="new")
 
-    # Term 117 has multiple courses — peak should be > 1 with a big limit.
+    # Term 117 has 11 courses in fixtures — peak should be > 1 with limit=20.
     assert in_flight["peak"] > 1
 
 
 # ---------------------------------------------------------------------------
-# Correctness
+# All quizzes processed within a course
 # ---------------------------------------------------------------------------
 
 async def test_audit_course_processes_all_quizzes(new_repo):
@@ -109,11 +114,12 @@ async def test_audit_course_processes_all_quizzes(new_repo):
     assert all(qid in {q.quiz_id for q in quizzes} for qid in quiz_ids_with_rows)
 
 
+# ---------------------------------------------------------------------------
+# Correctness under concurrency
+# ---------------------------------------------------------------------------
+
 async def test_audit_course_results_correct_under_concurrency(new_repo):
-    """
-    Sequential (limit=1) and concurrent (limit=10) term audits should
-    produce the same row count.
-    """
+    """Sequential and concurrent course audits should produce the same rows."""
     svc_seq = AccommodationService(new_repo, semaphore=asyncio.Semaphore(1))
     rows_seq = await svc_seq.audit_course(course_id=12977, engine="new")
 
@@ -124,10 +130,7 @@ async def test_audit_course_results_correct_under_concurrency(new_repo):
 
 
 async def test_audit_term_results_correct_under_concurrency(new_repo):
-    """
-    Term-level concurrent execution should produce the same row count
-    as sequential execution.
-    """
+    """Term-level concurrent execution should produce the same row count as sequential."""
     svc_seq = AccommodationService(new_repo, semaphore=asyncio.Semaphore(1))
     rows_seq = await svc_seq.audit_term(term_id=117, engine="new")
 

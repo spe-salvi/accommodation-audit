@@ -2,6 +2,11 @@
 
 An async Python tool that audits student quiz accommodations across an institution's Canvas LMS instance — verifying that extra time, extra attempts, and spell-check settings are correctly applied at scale.
 
+## Acknowledgments
+
+This project was developed with the assistance of Claude Sonnet 4.6 for ideation, debugging, and code refinement.  
+All architecture, design decisions, and final implementations were reviewed and validated by the author.
+
 ## The Problem
 
 At most universities, students with approved accommodations (extra time, additional attempts, spell-check access) rely on instructors to manually configure those settings in Canvas for every quiz, in every course, every term. There is no built-in way to verify this was done correctly.

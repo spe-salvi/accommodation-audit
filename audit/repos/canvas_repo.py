@@ -414,6 +414,71 @@ class CanvasRepo(AccommodationRepo):
         return course
 
 
+    # ------------------------------------------------------------------
+    # Search  (not cached — search results reflect live Canvas state)
+    # ------------------------------------------------------------------
+
+    async def search_courses(
+        self, query: str, *, term_id: int
+    ) -> list[Course]:
+        """
+        Search courses in this account by name, code, or SIS course ID.
+
+        Delegates to the Canvas account-level course search endpoint:
+        ``GET /api/v1/accounts/:id/courses?search_term=&enrollment_term_id=``
+
+        Canvas matches against course name, course code, and SIS course ID.
+        Not cached — search results must reflect current Canvas state.
+
+        Parameters
+        ----------
+        query:
+            Search string. Canvas handles partial matching server-side.
+        term_id:
+            Scopes the search to a single enrollment term. Required to
+            keep result sets manageable and avoid account-wide scans.
+        """
+        payload = await self.client.get_paginated_json(
+            f"/api/v1/accounts/{self._account_id}/courses",
+            params={
+                "search_term": query,
+                "enrollment_term_id": term_id,
+            },
+        )
+        courses = Course.list_from_api(payload, term_id=term_id)
+        logger.debug(
+            "search_courses: %r (term=%d) → %d result(s)",
+            query, term_id, len(courses),
+        )
+        return courses
+
+    async def search_users(self, query: str) -> list[User]:
+        """
+        Search users in this account by name, login, email, or SIS user ID.
+
+        Delegates to the Canvas account-level user search endpoint:
+        ``GET /api/v1/accounts/:id/users?search_term=``
+
+        Canvas matches against display name, sortable name, login ID,
+        email, and SIS user ID. Not cached — search results must reflect
+        current Canvas state and may change between runs.
+
+        Parameters
+        ----------
+        query:
+            Search string. Works for partial names and exact SIS IDs.
+        """
+        payload = await self.client.get_paginated_json(
+            f"/api/v1/accounts/{self._account_id}/users",
+            params={"search_term": query},
+        )
+        users = [User.from_api(u) for u in payload if isinstance(u, dict)]
+        users = [u for u in users if u is not None]
+        logger.debug(
+            "search_users: %r → %d result(s)", query, len(users),
+        )
+        return users
+
     async def get_course_by_id(self, course_id: int) -> Course | None:
         """
         Fetch a single course by ID without term validation.

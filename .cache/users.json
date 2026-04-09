@@ -55309,6 +55309,177 @@
         "locale": null
       },
       "cached_at": "2026-04-02T14:12:40.338964+00:00"
+    },
+    "13517": {
+      "data": {
+        "id": 13517,
+        "name": "Ryan McCarthy",
+        "short_name": "Ryan McCarthy",
+        "sortable_name": "McCarthy, Ryan",
+        "sis_user_id": "2635218",
+        "avatar_url": "https://franciscan.instructure.com/images/messages/avatar-50.png",
+        "integration_id": null,
+        "title": null,
+        "bio": null,
+        "pronunciation": null,
+        "primary_email": "rmccarthy003@student.franciscan.edu",
+        "login_id": "rmccarthy003",
+        "time_zone": "America/New_York",
+        "locale": null
+      },
+      "cached_at": "2026-04-08T20:04:49.726344+00:00"
+    },
+    "10973": {
+      "data": {
+        "id": 10973,
+        "name": "Peter McCarthy",
+        "short_name": "Peter McCarthy",
+        "sortable_name": "McCarthy, Peter",
+        "sis_user_id": "2632326",
+        "avatar_url": "https://franciscan.instructure.com/images/messages/avatar-50.png",
+        "integration_id": null,
+        "title": null,
+        "bio": "I am a Highschool senior, third child of six, Byzentine catholic. My favorite devotion is the Jesus Prayer. I am really excited to change the world and restore all things in Christ one day, I know that with strong brothers and sisters at my side and the Holy Spirit we can bring light into sosciety for the Lord. I also play the banjo.",
+        "pronunciation": null,
+        "primary_email": "pmccarthy004@student.franciscan.edu",
+        "login_id": "pmccarthy004",
+        "time_zone": "America/New_York",
+        "locale": null
+      },
+      "cached_at": "2026-04-08T20:04:49.826085+00:00"
+    },
+    "4828": {
+      "data": {
+        "id": 4828,
+        "name": "Diane McCarthy",
+        "short_name": "Diane McCarthy",
+        "sortable_name": "McCarthy, Diane",
+        "sis_user_id": "2512210",
+        "avatar_url": "https://franciscan.instructure.com/images/messages/avatar-50.png",
+        "integration_id": null,
+        "title": null,
+        "bio": null,
+        "pronunciation": null,
+        "primary_email": "DMcCarthy002@student.franciscan.edu",
+        "login_id": "DMcCarthy002",
+        "time_zone": "America/New_York",
+        "locale": null
+      },
+      "cached_at": "2026-04-08T20:04:49.909592+00:00"
+    },
+    "430": {
+      "data": {
+        "id": 430,
+        "name": "Luke McCarthy",
+        "short_name": "Luke McCarthy",
+        "sortable_name": "McCarthy, Luke",
+        "sis_user_id": "2589209",
+        "avatar_url": "https://franciscan.instructure.com/images/thumbnails/12725/aJSDK8mQyN8AtaTXpBnKRcrEB35OA1Ipqfok3Ard",
+        "integration_id": null,
+        "title": null,
+        "bio": "",
+        "pronunciation": null,
+        "primary_email": "LMcCarthy002@student.franciscan.edu",
+        "login_id": "LMcCarthy002",
+        "time_zone": "America/New_York",
+        "locale": null
+      },
+      "cached_at": "2026-04-08T20:04:50.010310+00:00"
+    },
+    "3480": {
+      "data": {
+        "id": 3480,
+        "name": "Nancy McCarthy",
+        "short_name": "Nancy McCarthy",
+        "sortable_name": "McCarthy, Nancy",
+        "sis_user_id": "2127415",
+        "avatar_url": "https://franciscan.instructure.com/images/messages/avatar-50.png",
+        "integration_id": null,
+        "title": null,
+        "bio": null,
+        "pronunciation": null,
+        "primary_email": "NMcCarthy001@student.franciscan.edu",
+        "login_id": "NMcCarthy001",
+        "time_zone": "America/New_York",
+        "locale": null
+      },
+      "cached_at": "2026-04-08T20:04:50.108636+00:00"
+    },
+    "10028": {
+      "data": {
+        "id": 10028,
+        "name": "Jacob McCarthy",
+        "short_name": "Jacob McCarthy",
+        "sortable_name": "McCarthy, Jacob",
+        "sis_user_id": "2631547",
+        "avatar_url": "https://franciscan.instructure.com/images/thumbnails/1136709/QoIcLvPU78yHNME6ToG9C1gm9LeQhm9zOhQWSkDf",
+        "integration_id": null,
+        "title": null,
+        "bio": "",
+        "pronunciation": null,
+        "primary_email": "jmccarthy003@student.franciscan.edu",
+        "login_id": "jmccarthy003",
+        "time_zone": "America/New_York",
+        "locale": null
+      },
+      "cached_at": "2026-04-08T20:04:50.199009+00:00"
+    },
+    "2671": {
+      "data": {
+        "id": 2671,
+        "name": "Anna McCarthy",
+        "short_name": "Anna McCarthy",
+        "sortable_name": "McCarthy, Anna",
+        "sis_user_id": "2597606",
+        "avatar_url": "https://franciscan.instructure.com/images/messages/avatar-50.png",
+        "integration_id": null,
+        "title": null,
+        "bio": null,
+        "pronunciation": null,
+        "primary_email": "amccarthy004@student.franciscan.edu",
+        "login_id": "amccarthy004",
+        "time_zone": "America/New_York",
+        "locale": null
+      },
+      "cached_at": "2026-04-08T20:04:50.276753+00:00"
+    },
+    "16951": {
+      "data": {
+        "id": 16951,
+        "name": "Lochlan McCarthy",
+        "short_name": "Lochlan McCarthy",
+        "sortable_name": "McCarthy, Lochlan",
+        "sis_user_id": "2639362",
+        "avatar_url": "https://franciscan.instructure.com/images/messages/avatar-50.png",
+        "integration_id": null,
+        "title": null,
+        "bio": null,
+        "pronunciation": null,
+        "primary_email": "lmccarthy004@student.franciscan.edu",
+        "login_id": "lmccarthy004",
+        "time_zone": "America/New_York",
+        "locale": null
+      },
+      "cached_at": "2026-04-08T20:04:50.376654+00:00"
+    },
+    "5764": {
+      "data": {
+        "id": 5764,
+        "name": "Kelly McCarthy",
+        "short_name": "Kelly McCarthy",
+        "sortable_name": "McCarthy, Kelly",
+        "sis_user_id": "2625689",
+        "avatar_url": "https://franciscan.instructure.com/images/messages/avatar-50.png",
+        "integration_id": null,
+        "title": null,
+        "bio": null,
+        "pronunciation": null,
+        "primary_email": "kmccarthy005@student.franciscan.edu",
+        "login_id": "kmccarthy005",
+        "time_zone": "America/New_York",
+        "locale": null
+      },
+      "cached_at": "2026-04-08T20:04:50.477038+00:00"
     }
   }
 }

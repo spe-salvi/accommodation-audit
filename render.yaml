@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: accommodation-audit
+    runtime: python
+    buildCommand: |
+      pip install -r requirements.txt
+      pip install fastapi uvicorn[standard] python-multipart
+      cd frontend && npm install && npm run build
+    startCommand: uvicorn api.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: CANVAS_BASE_URL
+        sync: false
+      - key: CANVAS_TOKEN
+        sync: false
+      - key: CANVAS_ACCOUNT_ID
+        sync: false
+      - key: CANVAS_BACKDOOR_URL
+        sync: false
+      - key: CANVAS_ADMIN_USERNAME
+        sync: false
+      - key: CANVAS_ADMIN_PASSWORD
+        sync: false
+    disk:
+      name: cache
+      mountPath: /opt/render/project/src/.cache
+      sizeGB: 1

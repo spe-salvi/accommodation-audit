@@ -22,6 +22,13 @@ epoch for all entries of a given type, forcing them to be treated as
 expired on the next run. This preserves the cached data (useful for
 auditing what was previously cached) while forcing a re-fetch.
 
+Hit/miss tracking
+-----------------
+``hits`` counts calls to ``get()`` or ``get_list()`` that returned data.
+``misses`` counts calls that returned None (key absent or TTL expired).
+Both counters are reset to zero on construction and are queryable at
+run end via ``audit.metrics.collect_metrics()``.
+
 File format
 -----------
 Each file is a JSON object::
@@ -39,8 +46,7 @@ Each file is a JSON object::
 Thread safety
 -------------
 asyncio is single-threaded so no locking is needed. The cache is
-not safe for concurrent writes from multiple processes — use a single
-process per cache directory.
+not safe for concurrent writes from multiple processes.
 """
 
 from __future__ import annotations
@@ -112,6 +118,9 @@ class PersistentCache:
         self._ttls = {**_DEFAULT_TTLS, **(ttls or {})}
         # Lazy-loaded store: entity_type → {str_key: {data, cached_at}}
         self._store: dict[CacheEntity, dict[str, dict]] = {}
+        # Hit/miss counters — reset each run, queryable via collect_metrics().
+        self.hits: int = 0
+        self.misses: int = 0
 
     # ------------------------------------------------------------------
     # Public API
@@ -120,40 +129,46 @@ class PersistentCache:
     def get(self, entity: CacheEntity, key: int | str) -> dict | None:
         """
         Return the cached data for *key*, or None if missing or expired.
+
+        Increments ``hits`` on a valid cache entry, ``misses`` on an
+        absent key or expired TTL.
         """
         store = self._load(entity)
         entry = store.get(str(key))
         if entry is None:
+            self.misses += 1
             return None
 
         cached_at = _parse_dt(entry["cached_at"])
         if datetime.now(timezone.utc) - cached_at > self._ttls[entity]:
             logger.debug(
-                "persistent cache EXPIRED: %s/%s (age=%s ttl=%s)",
-                entity.value, key,
-                datetime.now(timezone.utc) - cached_at,
-                self._ttls[entity],
+                "persistent cache EXPIRED: %s/%s", entity.value, key,
             )
+            self.misses += 1
             return None
 
         logger.debug("persistent cache HIT: %s/%s", entity.value, key)
+        self.hits += 1
         return entry["data"]
 
     def get_list(self, entity: CacheEntity, key: int | str) -> list | None:
         """
         Return cached list data for *key*, or None if missing or expired.
+
+        Delegates to ``get()`` — hits and misses are tracked there.
         """
         data = self.get(entity, key)
         if data is None:
             return None
         if not isinstance(data, list):
+            # Technically a hit for the key, but the wrong type — treat as miss.
+            self.hits -= 1
+            self.misses += 1
             return None
         return data
 
     def set(self, entity: CacheEntity, key: int | str, data: Any) -> None:
-        """
-        Store *data* for *key* with the current timestamp.
-        """
+        """Store *data* for *key* with the current timestamp."""
         store = self._load(entity)
         store[str(key)] = {
             "data": data,
@@ -166,9 +181,6 @@ class PersistentCache:
         """
         Reset ``cached_at`` to the Unix epoch for all entries of *entity*,
         forcing them to be treated as expired on the next access.
-
-        Preserves the cached data for inspection while ensuring every
-        entry is re-fetched on the next run.
 
         Returns the number of entries invalidated.
         """
@@ -184,9 +196,7 @@ class PersistentCache:
         return count
 
     def stats(self) -> dict[str, dict]:
-        """
-        Return entry totals and valid/expired counts per entity type.
-        """
+        """Return entry totals and valid/expired counts per entity type."""
         result = {}
         for entity in CacheEntity:
             store = self._load(entity)
@@ -223,8 +233,7 @@ class PersistentCache:
                     self._store[entity] = raw.get("entries", {})
                 else:
                     logger.warning(
-                        "persistent cache: version mismatch in %s, discarding",
-                        path,
+                        "persistent cache: version mismatch in %s, discarding", path,
                     )
                     self._store[entity] = {}
             except (json.JSONDecodeError, KeyError) as exc:

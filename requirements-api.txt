@@ -1,0 +1,6 @@
+# Existing audit dependencies are in requirements.txt
+# These are the additional packages needed for the API layer
+
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+python-multipart>=0.0.12
